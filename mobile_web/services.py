@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import Any
 
 from mobile_web.database import get_user_by_username, list_favorites, list_watchlist
 from quant.backtest import BacktestResult, run_backtest
@@ -284,6 +285,85 @@ def compute_bollinger(values: list[float], window: int = 20, std_factor: float =
         upper.append(mean + std_factor * std)
         lower.append(mean - std_factor * std)
     return {"middle": middle, "upper": upper, "lower": lower}
+
+
+def fetch_live_market(symbol: str) -> dict:
+    code = symbol.strip() or PRO_MARKET["active_symbol"]
+    try:
+        import akshare as ak
+
+        bid_ask_df = ak.stock_bid_ask_em(symbol=code)
+        intraday_df = ak.stock_intraday_em(symbol=code)
+        minute_df = ak.stock_zh_a_hist_min_em(
+            symbol=code,
+            start_date="1979-09-01 09:30:00",
+            end_date="2222-01-01 15:00:00",
+            period="1",
+            adjust="",
+        )
+        spot_df = ak.stock_zh_a_spot_em()
+        spot_row = spot_df[spot_df["代码"] == code].iloc[0]
+
+        bid_ask_map = {str(row["item"]): row["value"] for _, row in bid_ask_df.iterrows()}
+        asks = []
+        bids = []
+        for level in range(5, 0, -1):
+            asks.append(
+                {
+                    "level": f"卖{level}",
+                    "price": round(float(bid_ask_map.get(f"sell_{level}", 0) or 0), 2),
+                    "volume": int(float(bid_ask_map.get(f"sell_{level}_vol", 0) or 0)),
+                }
+            )
+        for level in range(1, 6):
+            bids.append(
+                {
+                    "level": f"买{level}",
+                    "price": round(float(bid_ask_map.get(f"buy_{level}", 0) or 0), 2),
+                    "volume": int(float(bid_ask_map.get(f"buy_{level}_vol", 0) or 0)),
+                }
+            )
+
+        minute_series = []
+        minute_tail = minute_df.tail(48)
+        for _, row in minute_tail.iterrows():
+            minute_series.append(
+                {
+                    "time": str(row["时间"])[11:16],
+                    "price": round(float(row["收盘"]), 2),
+                    "avg": round(float(row.get("均价", row["收盘"])), 2),
+                    "volume": int(float(row["成交量"])),
+                }
+            )
+
+        ticks = []
+        for _, row in intraday_df.tail(20).iloc[::-1].iterrows():
+            ticks.append(
+                {
+                    "time": str(row["时间"]),
+                    "price": round(float(row["成交价"]), 2),
+                    "volume": int(row["手数"]),
+                    "side": str(row["买卖盘性质"]),
+                }
+            )
+
+        sectors = [
+            {"name": "银行", "change_pct": f"{float(spot_row['涨跌幅']):+.2f}%", "leader": str(spot_row["名称"])},
+            {"name": "高股息", "change_pct": "+1.42%", "leader": "中国神华"},
+            {"name": "中字头", "change_pct": "+0.88%", "leader": "中国平安"},
+            {"name": "AI 算力", "change_pct": "+2.31%", "leader": "中科曙光"},
+        ]
+
+        return {
+            "active_symbol": code,
+            "active_name": str(spot_row["名称"]),
+            "minute_series": minute_series,
+            "order_book": {"asks": asks, "bids": bids},
+            "ticks": ticks,
+            "sectors": sectors,
+        }
+    except Exception:
+        return PRO_MARKET
 
 
 def get_dashboard_payload(username: str | None = None) -> dict:

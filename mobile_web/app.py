@@ -8,14 +8,21 @@ from flask import session
 from mobile_web.database import (
     add_favorite,
     add_watchlist_item,
+    create_conditional_order,
+    create_order,
     get_user_by_username,
+    get_risk_profile,
     init_db,
     list_favorites,
+    list_conditional_orders,
+    list_orders,
     list_watchlist,
     register_user,
     remove_favorite,
     remove_watchlist_item,
+    update_risk_profile,
 )
+from mobile_web.live_market import fetch_live_market
 from mobile_web.services import (
     get_dashboard_payload,
     get_strategy_detail,
@@ -37,6 +44,11 @@ def create_app() -> Flask:
     @app.get("/api/dashboard")
     def dashboard():
         return jsonify(get_dashboard_payload(session.get("username")))
+
+    @app.get("/api/market/live")
+    def market_live():
+        symbol = request.args.get("symbol", "000001")
+        return jsonify(fetch_live_market(symbol))
 
     @app.get("/api/strategies")
     def strategies():
@@ -131,6 +143,35 @@ def create_app() -> Flask:
         username = session.get("username", "guest")
         items = remove_favorite(username=username, strategy_code=strategy_code)
         return jsonify({"items": items})
+
+    @app.get("/api/trading/terminal")
+    def trading_terminal():
+        username = session.get("username", "guest")
+        return jsonify(
+            {
+                "orders": list_orders(username),
+                "conditional_orders": list_conditional_orders(username),
+                "risk_profile": get_risk_profile(username),
+            }
+        )
+
+    @app.post("/api/trading/orders")
+    def trading_orders():
+        username = session.get("username", "guest")
+        payload = request.get_json(force=True)
+        return jsonify({"items": create_order(username, payload)})
+
+    @app.post("/api/trading/conditional-orders")
+    def trading_conditional_orders():
+        username = session.get("username", "guest")
+        payload = request.get_json(force=True)
+        return jsonify({"items": create_conditional_order(username, payload)})
+
+    @app.put("/api/trading/risk-profile")
+    def trading_risk_profile():
+        username = session.get("username", "guest")
+        payload = request.get_json(force=True)
+        return jsonify({"profile": update_risk_profile(username, payload)})
 
     @app.post("/api/backtest")
     def backtest():

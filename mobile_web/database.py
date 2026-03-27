@@ -69,6 +69,49 @@ FAVORITES = Table(
     UniqueConstraint("user_id", "strategy_code", name="uq_favorites_user_strategy"),
 )
 
+ORDERS = Table(
+    "orders",
+    METADATA,
+    Column("id", Integer, primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("symbol", String(16), nullable=False),
+    Column("side", String(16), nullable=False),
+    Column("order_type", String(16), nullable=False),
+    Column("price", String(32), nullable=False),
+    Column("quantity", Integer, nullable=False),
+    Column("status", String(32), nullable=False, server_default="submitted"),
+    Column("note", Text, nullable=False, server_default=""),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+)
+
+CONDITIONAL_ORDERS = Table(
+    "conditional_orders",
+    METADATA,
+    Column("id", Integer, primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False),
+    Column("symbol", String(16), nullable=False),
+    Column("trigger_type", String(32), nullable=False),
+    Column("trigger_price", String(32), nullable=False),
+    Column("order_side", String(16), nullable=False),
+    Column("order_price", String(32), nullable=False),
+    Column("quantity", Integer, nullable=False),
+    Column("status", String(32), nullable=False, server_default="armed"),
+    Column("created_at", DateTime, nullable=False, server_default=func.now()),
+)
+
+RISK_PROFILES = Table(
+    "risk_profiles",
+    METADATA,
+    Column("id", Integer, primary_key=True),
+    Column("user_id", Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True),
+    Column("max_position_pct", Integer, nullable=False, server_default="25"),
+    Column("max_daily_loss_pct", Integer, nullable=False, server_default="3"),
+    Column("max_drawdown_pct", Integer, nullable=False, server_default="12"),
+    Column("auto_stop_loss_pct", Integer, nullable=False, server_default="5"),
+    Column("auto_take_profit_pct", Integer, nullable=False, server_default="12"),
+    Column("updated_at", DateTime, nullable=False, server_default=func.now()),
+)
+
 
 DEMO_USERS = [
     {
@@ -158,6 +201,80 @@ def init_db() -> None:
                     connection.execute(
                         insert(FAVORITES).values(user_id=momo.id, strategy_code=strategy_code)
                     )
+            risk_exists = connection.execute(
+                select(RISK_PROFILES.c.id).where(RISK_PROFILES.c.user_id == momo.id)
+            ).first()
+            if not risk_exists:
+                connection.execute(
+                    insert(RISK_PROFILES).values(
+                        user_id=momo.id,
+                        max_position_pct=30,
+                        max_daily_loss_pct=3,
+                        max_drawdown_pct=12,
+                        auto_stop_loss_pct=5,
+                        auto_take_profit_pct=14,
+                    )
+                )
+
+            order_exists = connection.execute(
+                select(ORDERS.c.id).where(ORDERS.c.user_id == momo.id)
+            ).first()
+            if not order_exists:
+                connection.execute(
+                    insert(ORDERS),
+                    [
+                        {
+                            "user_id": momo.id,
+                            "symbol": "000001",
+                            "side": "buy",
+                            "order_type": "limit",
+                            "price": "11.02",
+                            "quantity": 1200,
+                            "status": "submitted",
+                            "note": "趋势策略联动下单",
+                        },
+                        {
+                            "user_id": momo.id,
+                            "symbol": "600519",
+                            "side": "sell",
+                            "order_type": "market",
+                            "price": "0",
+                            "quantity": 100,
+                            "status": "filled",
+                            "note": "风控减仓",
+                        },
+                    ],
+                )
+
+            conditional_exists = connection.execute(
+                select(CONDITIONAL_ORDERS.c.id).where(CONDITIONAL_ORDERS.c.user_id == momo.id)
+            ).first()
+            if not conditional_exists:
+                connection.execute(
+                    insert(CONDITIONAL_ORDERS),
+                    [
+                        {
+                            "user_id": momo.id,
+                            "symbol": "000001",
+                            "trigger_type": "breakout_up",
+                            "trigger_price": "11.20",
+                            "order_side": "buy",
+                            "order_price": "11.22",
+                            "quantity": 1000,
+                            "status": "armed",
+                        },
+                        {
+                            "user_id": momo.id,
+                            "symbol": "600519",
+                            "trigger_type": "stop_loss",
+                            "trigger_price": "1498.00",
+                            "order_side": "sell",
+                            "order_price": "1497.50",
+                            "quantity": 100,
+                            "status": "armed",
+                        },
+                    ],
+                )
 
 
 def get_user_row(username: str) -> RowMapping | None:
@@ -288,3 +405,134 @@ def remove_favorite(username: str, strategy_code: str) -> list[str]:
             )
         )
     return list_favorites(username)
+
+
+def _resolve_user_id(username: str) -> int:
+    user = get_user_by_username(username)
+    if user is None:
+        raise ValueError("用户不存在")
+    return int(user["id"])
+
+
+def get_risk_profile(username: str) -> dict:
+    user_id = _resolve_user_id(username)
+    with ENGINE.begin() as connection:
+        row = connection.execute(
+            select(RISK_PROFILES).where(RISK_PROFILES.c.user_id == user_id)
+        ).mappings().first()
+        if row is None:
+            connection.execute(insert(RISK_PROFILES).values(user_id=user_id))
+            row = connection.execute(
+                select(RISK_PROFILES).where(RISK_PROFILES.c.user_id == user_id)
+            ).mappings().first()
+    return {
+        "max_position_pct": int(row["max_position_pct"]),
+        "max_daily_loss_pct": int(row["max_daily_loss_pct"]),
+        "max_drawdown_pct": int(row["max_drawdown_pct"]),
+        "auto_stop_loss_pct": int(row["auto_stop_loss_pct"]),
+        "auto_take_profit_pct": int(row["auto_take_profit_pct"]),
+    }
+
+
+def update_risk_profile(username: str, payload: dict) -> dict:
+    user_id = _resolve_user_id(username)
+    values = {
+        "max_position_pct": int(payload.get("max_position_pct", 25)),
+        "max_daily_loss_pct": int(payload.get("max_daily_loss_pct", 3)),
+        "max_drawdown_pct": int(payload.get("max_drawdown_pct", 12)),
+        "auto_stop_loss_pct": int(payload.get("auto_stop_loss_pct", 5)),
+        "auto_take_profit_pct": int(payload.get("auto_take_profit_pct", 12)),
+    }
+    with ENGINE.begin() as connection:
+        row = connection.execute(
+            select(RISK_PROFILES.c.id).where(RISK_PROFILES.c.user_id == user_id)
+        ).first()
+        if row is None:
+            connection.execute(insert(RISK_PROFILES).values(user_id=user_id, **values))
+        else:
+            connection.execute(
+                RISK_PROFILES.update().where(RISK_PROFILES.c.user_id == user_id).values(**values)
+            )
+    return get_risk_profile(username)
+
+
+def list_orders(username: str) -> list[dict]:
+    user_id = _resolve_user_id(username)
+    with ENGINE.begin() as connection:
+        rows = connection.execute(
+            select(ORDERS)
+            .where(ORDERS.c.user_id == user_id)
+            .order_by(ORDERS.c.created_at.desc(), ORDERS.c.id.desc())
+        ).mappings().all()
+    return [
+        {
+            "id": row["id"],
+            "symbol": row["symbol"],
+            "side": row["side"],
+            "order_type": row["order_type"],
+            "price": row["price"],
+            "quantity": int(row["quantity"]),
+            "status": row["status"],
+            "note": row["note"],
+        }
+        for row in rows
+    ]
+
+
+def create_order(username: str, payload: dict) -> list[dict]:
+    user_id = _resolve_user_id(username)
+    with ENGINE.begin() as connection:
+        connection.execute(
+            insert(ORDERS).values(
+                user_id=user_id,
+                symbol=str(payload.get("symbol", "")).strip(),
+                side=str(payload.get("side", "buy")).strip(),
+                order_type=str(payload.get("order_type", "limit")).strip(),
+                price=str(payload.get("price", "0")).strip(),
+                quantity=int(payload.get("quantity", 0)),
+                status="submitted",
+                note=str(payload.get("note", "")).strip(),
+            )
+        )
+    return list_orders(username)
+
+
+def list_conditional_orders(username: str) -> list[dict]:
+    user_id = _resolve_user_id(username)
+    with ENGINE.begin() as connection:
+        rows = connection.execute(
+            select(CONDITIONAL_ORDERS)
+            .where(CONDITIONAL_ORDERS.c.user_id == user_id)
+            .order_by(CONDITIONAL_ORDERS.c.created_at.desc(), CONDITIONAL_ORDERS.c.id.desc())
+        ).mappings().all()
+    return [
+        {
+            "id": row["id"],
+            "symbol": row["symbol"],
+            "trigger_type": row["trigger_type"],
+            "trigger_price": row["trigger_price"],
+            "order_side": row["order_side"],
+            "order_price": row["order_price"],
+            "quantity": int(row["quantity"]),
+            "status": row["status"],
+        }
+        for row in rows
+    ]
+
+
+def create_conditional_order(username: str, payload: dict) -> list[dict]:
+    user_id = _resolve_user_id(username)
+    with ENGINE.begin() as connection:
+        connection.execute(
+            insert(CONDITIONAL_ORDERS).values(
+                user_id=user_id,
+                symbol=str(payload.get("symbol", "")).strip(),
+                trigger_type=str(payload.get("trigger_type", "breakout_up")).strip(),
+                trigger_price=str(payload.get("trigger_price", "0")).strip(),
+                order_side=str(payload.get("order_side", "buy")).strip(),
+                order_price=str(payload.get("order_price", "0")).strip(),
+                quantity=int(payload.get("quantity", 0)),
+                status="armed",
+            )
+        )
+    return list_conditional_orders(username)

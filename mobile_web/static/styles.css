@@ -472,6 +472,86 @@ canvas {
   gap: 10px;
 }
 
+.live-toolbar,
+.terminal-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.live-toolbar {
+  grid-template-columns: 1fr auto;
+  align-items: end;
+  margin-bottom: 12px;
+}
+
+.compact-field {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.compact-field input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  padding: 12px 14px;
+  font-size: 15px;
+  background: var(--surface-strong);
+}
+
+.mini-action--brand {
+  border-color: transparent;
+  background: linear-gradient(135deg, var(--brand), #f0a14e);
+  color: #fff;
+}
+
+.terminal-card {
+  padding: 14px;
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid var(--line);
+}
+
+.terminal-form {
+  margin-top: 12px;
+}
+
+.terminal-list {
+  margin-top: 12px;
+}
+
+.terminal-row {
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(24, 33, 43, 0.04);
+}
+
+.terminal-row strong {
+  font-size: 14px;
+}
+
+.terminal-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.risk-status-card {
+  display: grid;
+  align-content: center;
+  padding: 12px;
+  border-radius: 16px;
+  background: rgba(24, 33, 43, 0.05);
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
 .market-hero {
   grid-template-columns: 1fr auto;
   align-items: center;
@@ -566,7 +646,8 @@ canvas {
   .account-grid,
   .form-row,
   .index-strip,
-  .market-grid {
+  .market-grid,
+  .live-toolbar {
     grid-template-columns: 1fr;
   }
 }
@@ -590,5 +671,9 @@ canvas {
 
   .strategy-list {
     grid-template-columns: repeat(2, 1fr);
+  }
+
+  .terminal-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 }

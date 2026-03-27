@@ -33,7 +33,7 @@
             <div class="quick-grid">
               <button class="quick-chip quick-chip--primary" data-jump="screen-trade">立即回测</button>
               <button class="quick-chip" data-jump="screen-strategy">选策略</button>
-              <button class="quick-chip" data-jump="screen-account">看我的</button>
+              <button class="quick-chip" data-jump="screen-account">我的面板</button>
             </div>
           </section>
 
@@ -43,7 +43,7 @@
                 <p class="tiny-label">行情总览</p>
                 <h3>首页行情榜单</h3>
               </div>
-              <span class="section-chip">实时感</span>
+              <span class="section-chip">实时观察</span>
             </div>
             <div class="index-strip" id="index-strip"></div>
             <div class="board-switch">
@@ -59,7 +59,14 @@
                 <p class="tiny-label">专业行情页</p>
                 <h3>分时 · 五档 · 成交 · 板块</h3>
               </div>
-              <span class="section-chip">终端化</span>
+              <span class="section-chip">实时数据</span>
+            </div>
+            <div class="live-toolbar">
+              <label class="compact-field">
+                标的代码
+                <input id="live-symbol" value="000001" maxlength="6" inputmode="numeric">
+              </label>
+              <button class="mini-action mini-action--brand" type="button" id="refresh-live-market">刷新实时行情</button>
             </div>
             <div class="market-hero" id="market-hero"></div>
             <canvas id="minute-chart" height="220"></canvas>
@@ -162,6 +169,150 @@
               <input type="hidden" name="strategy_code" id="strategy-code" value="beichen_ma_fast">
               <button type="submit" class="primary-submit">运行当前策略</button>
             </form>
+          </section>
+
+          <section class="section-card">
+            <div class="section-head">
+              <div>
+                <p class="tiny-label">交易终端</p>
+                <h3>下单 / 条件单 / 风控</h3>
+              </div>
+              <span class="section-chip section-chip--green">模拟交易</span>
+            </div>
+            <div class="terminal-grid">
+              <article class="terminal-card">
+                <div class="meta-row">
+                  <strong>下单面板</strong>
+                  <span class="section-chip">委托入口</span>
+                </div>
+                <form id="order-form" class="trade-form terminal-form">
+                  <div class="form-row">
+                    <label>
+                      股票代码
+                      <input name="symbol" value="000001" maxlength="6" inputmode="numeric">
+                    </label>
+                    <label>
+                      方向
+                      <select name="side">
+                        <option value="buy">买入</option>
+                        <option value="sell">卖出</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="form-row">
+                    <label>
+                      委托类型
+                      <select name="order_type">
+                        <option value="limit">限价</option>
+                        <option value="market">市价</option>
+                      </select>
+                    </label>
+                    <label>
+                      价格
+                      <input name="price" type="number" step="0.01" value="11.02">
+                    </label>
+                  </div>
+                  <div class="form-row">
+                    <label>
+                      数量
+                      <input name="quantity" type="number" value="1000">
+                    </label>
+                    <label>
+                      备注
+                      <input name="note" value="策略联动单">
+                    </label>
+                  </div>
+                  <button class="primary-submit" type="submit">提交委托</button>
+                </form>
+                <div id="order-list" class="stack-list terminal-list"></div>
+              </article>
+
+              <article class="terminal-card">
+                <div class="meta-row">
+                  <strong>条件单</strong>
+                  <span class="section-chip section-chip--warm">预埋触发</span>
+                </div>
+                <form id="conditional-form" class="trade-form terminal-form">
+                  <div class="form-row">
+                    <label>
+                      股票代码
+                      <input name="symbol" value="000001" maxlength="6" inputmode="numeric">
+                    </label>
+                    <label>
+                      触发类型
+                      <select name="trigger_type">
+                        <option value="breakout_up">向上突破</option>
+                        <option value="breakout_down">向下跌破</option>
+                        <option value="stop_loss">止损触发</option>
+                        <option value="take_profit">止盈触发</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="form-row">
+                    <label>
+                      触发价格
+                      <input name="trigger_price" type="number" step="0.01" value="11.20">
+                    </label>
+                    <label>
+                      下单方向
+                      <select name="order_side">
+                        <option value="buy">买入</option>
+                        <option value="sell">卖出</option>
+                      </select>
+                    </label>
+                  </div>
+                  <div class="form-row">
+                    <label>
+                      委托价格
+                      <input name="order_price" type="number" step="0.01" value="11.22">
+                    </label>
+                    <label>
+                      数量
+                      <input name="quantity" type="number" value="1000">
+                    </label>
+                  </div>
+                  <button class="primary-submit" type="submit">保存条件单</button>
+                </form>
+                <div id="conditional-list" class="stack-list terminal-list"></div>
+              </article>
+
+              <article class="terminal-card">
+                <div class="meta-row">
+                  <strong>风控面板</strong>
+                  <span class="section-chip">账户约束</span>
+                </div>
+                <form id="risk-form" class="trade-form terminal-form">
+                  <div class="form-row">
+                    <label>
+                      单票上限 %
+                      <input name="max_position_pct" type="number" value="25">
+                    </label>
+                    <label>
+                      日内亏损上限 %
+                      <input name="max_daily_loss_pct" type="number" value="3">
+                    </label>
+                  </div>
+                  <div class="form-row">
+                    <label>
+                      组合回撤上限 %
+                      <input name="max_drawdown_pct" type="number" value="12">
+                    </label>
+                    <label>
+                      自动止损 %
+                      <input name="auto_stop_loss_pct" type="number" value="5">
+                    </label>
+                  </div>
+                  <div class="form-row">
+                    <label>
+                      自动止盈 %
+                      <input name="auto_take_profit_pct" type="number" value="12">
+                    </label>
+                    <div class="risk-status-card" id="risk-status"></div>
+                  </div>
+                  <button class="primary-submit" type="submit">保存风控参数</button>
+                </form>
+              </article>
+            </div>
           </section>
 
           <section class="section-card">
@@ -273,15 +424,15 @@
           <span>首页</span>
         </button>
         <button class="tabbar-item" data-screen="screen-strategy">
-          <span class="tabbar-icon">◇</span>
+          <span class="tabbar-icon">◫</span>
           <span>策略</span>
         </button>
         <button class="tabbar-item" data-screen="screen-trade">
-          <span class="tabbar-icon">●</span>
+          <span class="tabbar-icon">◪</span>
           <span>回测</span>
         </button>
         <button class="tabbar-item" data-screen="screen-account">
-          <span class="tabbar-icon">◔</span>
+          <span class="tabbar-icon">◎</span>
           <span>我的</span>
         </button>
       </nav>
