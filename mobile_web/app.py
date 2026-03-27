@@ -5,7 +5,17 @@ import os
 from flask import Flask, jsonify, render_template, request
 from flask import session
 
-from mobile_web.database import get_user_by_username, init_db, register_user
+from mobile_web.database import (
+    add_favorite,
+    add_watchlist_item,
+    get_user_by_username,
+    init_db,
+    list_favorites,
+    list_watchlist,
+    register_user,
+    remove_favorite,
+    remove_watchlist_item,
+)
 from mobile_web.services import (
     get_dashboard_payload,
     get_strategy_detail,
@@ -81,6 +91,46 @@ def create_app() -> Flask:
     def logout():
         session.pop("username", None)
         return jsonify({"message": "已退出登录"})
+
+    @app.get("/api/me/watchlist")
+    def my_watchlist():
+        username = session.get("username", "guest")
+        return jsonify({"items": list_watchlist(username)})
+
+    @app.post("/api/me/watchlist")
+    def add_watchlist():
+        payload = request.get_json(force=True)
+        username = session.get("username", "guest")
+        items = add_watchlist_item(
+            username=username,
+            symbol=payload.get("symbol", "").strip(),
+            name=payload.get("name", "").strip() or payload.get("symbol", "").strip(),
+        )
+        return jsonify({"items": items})
+
+    @app.delete("/api/me/watchlist/<symbol>")
+    def delete_watchlist(symbol: str):
+        username = session.get("username", "guest")
+        items = remove_watchlist_item(username=username, symbol=symbol)
+        return jsonify({"items": items})
+
+    @app.get("/api/me/favorites")
+    def my_favorites():
+        username = session.get("username", "guest")
+        return jsonify({"items": list_favorites(username)})
+
+    @app.post("/api/me/favorites")
+    def create_favorite():
+        payload = request.get_json(force=True)
+        username = session.get("username", "guest")
+        items = add_favorite(username=username, strategy_code=payload.get("strategy_code", "").strip())
+        return jsonify({"items": items})
+
+    @app.delete("/api/me/favorites/<strategy_code>")
+    def delete_favorite(strategy_code: str):
+        username = session.get("username", "guest")
+        items = remove_favorite(username=username, strategy_code=strategy_code)
+        return jsonify({"items": items})
 
     @app.post("/api/backtest")
     def backtest():

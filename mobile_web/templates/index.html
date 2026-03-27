@@ -158,6 +158,11 @@
               <button class="chart-tab" data-period="60">60日</button>
               <button class="chart-tab" data-period="90">90日</button>
             </div>
+            <div class="chart-switch">
+              <button class="chart-tab" type="button" id="zoom-out">缩小</button>
+              <button class="chart-tab" type="button" id="zoom-in">放大</button>
+              <button class="chart-tab" type="button" id="reset-view">重置视图</button>
+            </div>
             <div class="chart-legend" id="chart-legend"></div>
             <canvas id="candles-chart" height="240"></canvas>
             <canvas id="equity-chart" class="hidden-chart" height="240"></canvas>
@@ -192,6 +197,10 @@
                 <strong>手机号</strong>
                 <p id="phone-mask-text">--</p>
               </article>
+            </div>
+            <div class="favorites-panel">
+              <h4>我的策略收藏</h4>
+              <div id="favorite-list" class="stack-list"></div>
             </div>
           </section>
 

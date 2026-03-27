@@ -91,7 +91,8 @@ body {
 .board-tab,
 .chart-tab,
 .market-tab,
-.quick-chip {
+.quick-chip,
+.mini-action {
   border: 1px solid var(--line);
   background: rgba(255, 255, 255, 0.85);
   color: var(--muted);
@@ -309,7 +310,7 @@ body {
 
 .leader-row {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr auto auto;
   align-items: center;
   gap: 10px;
 }
@@ -330,6 +331,13 @@ body {
   flex-wrap: wrap;
   gap: 8px;
   margin-top: 10px;
+}
+
+.mini-action {
+  border-radius: 12px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-weight: 700;
 }
 
 .strategy-card {
@@ -419,6 +427,14 @@ canvas {
   margin: 0;
   padding-left: 18px;
   line-height: 1.9;
+}
+
+.favorites-panel {
+  margin-top: 14px;
+}
+
+.favorites-panel h4 {
+  margin: 0 0 10px;
 }
 
 .tabbar {

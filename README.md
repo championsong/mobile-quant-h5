@@ -56,7 +56,20 @@ guest / guest123
 数据持久化：
 
 - 用户注册和登录信息会写入本地 SQLite 数据库 `momo_quant.db`
-- 线上正式环境建议迁移到独立数据库服务
+- 线上正式环境可通过 `DATABASE_URL` 切换到 PostgreSQL
+
+示例：
+
+```bash
+DATABASE_URL=postgresql://user:password@host:5432/momo_quant
+```
+
+当前还支持：
+
+- 持久化保存“我的自选”
+- 持久化保存“我的策略收藏”
+- K 线图周期切换、均线叠加、买卖点标记
+- K 线图缩放、拖动、十字线与成交量面板
 
 建议安装依赖：
 

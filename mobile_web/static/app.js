@@ -6,11 +6,18 @@ const state = {
   strategyDetail: null,
   boardMode: "gainers",
   candlePeriod: 20,
+  candleOffset: 0,
   authMode: "login",
   lastCandles: [],
   lastCurve: [],
   lastSignals: [],
   movingAverages: null,
+  favorites: [],
+  watchlist: [],
+  crosshairIndex: null,
+  isDraggingChart: false,
+  dragStartX: 0,
+  dragOffsetSnapshot: 0,
 };
 
 async function fetchJson(url, options = {}) {
@@ -47,6 +54,7 @@ function renderAuth() {
 
 function renderDashboard(data) {
   state.dashboard = data;
+  state.watchlist = data.watchlist || [];
   const totalAsset = data.summary_cards.find((item) => item.label === "总资产");
   const dailyPnl = data.summary_cards.find((item) => item.label === "今日盈亏");
 
@@ -80,7 +88,7 @@ function renderDashboard(data) {
     </article>
   `).join("");
 
-  document.getElementById("watchlist").innerHTML = data.watchlist.map((item) => `<li>${item}</li>`).join("");
+  document.getElementById("watchlist").innerHTML = (data.watchlist || []).map((item) => `<li>${item.symbol} ${item.name}</li>`).join("");
 
   document.getElementById("broker-list").innerHTML = data.brokers.map((item) => `
     <article class="broker-card">
@@ -96,6 +104,7 @@ function renderDashboard(data) {
   `).join("");
 
   renderMarketBoard();
+  renderFavorites();
 }
 
 function renderMarketBoard() {
@@ -123,8 +132,23 @@ function renderMarketBoard() {
         <strong>${item.price}</strong>
         <p class="${item.change_pct.startsWith("-") ? "negative" : "positive"}">${item.change_pct}</p>
       </div>
+      <button class="mini-action" type="button" data-watch-symbol="${item.symbol}" data-watch-name="${item.name}">加自选</button>
     </article>
   `).join("");
+
+  document.querySelectorAll("[data-watch-symbol]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const itemsAfter = await fetchJson("/api/me/watchlist", {
+        method: "POST",
+        body: JSON.stringify({
+          symbol: button.dataset.watchSymbol,
+          name: button.dataset.watchName,
+        }),
+      });
+      state.watchlist = itemsAfter.items;
+      document.getElementById("watchlist").innerHTML = state.watchlist.map((item) => `<li>${item.symbol} ${item.name}</li>`).join("");
+    });
+  });
 }
 
 function renderSelectedStrategy() {
@@ -145,7 +169,11 @@ function renderSelectedStrategy() {
     </div>
     <p class="helper-text">${strategy.hero || strategy.description}</p>
     <div class="chip-row">${strategy.tags.map((tag) => `<span>${tag}</span>`).join("")}</div>
+    <button class="mini-action" type="button" id="favorite-current">
+      ${state.favorites.includes(strategy.code) ? "取消收藏" : "收藏策略"}
+    </button>
   `;
+  document.getElementById("favorite-current").addEventListener("click", () => toggleFavorite(strategy.code));
 }
 
 async function loadStrategyDetail(code) {
@@ -195,6 +223,9 @@ function renderStrategies(items) {
       <p class="helper-text">${item.description}</p>
       <p class="helper-text">适用场景：${item.fit_for}</p>
       <div class="chip-row">${item.tags.map((tag) => `<span>${tag}</span>`).join("")}</div>
+      <button class="mini-action" type="button" data-favorite-code="${item.code}">
+        ${state.favorites.includes(item.code) ? "已收藏" : "收藏"}
+      </button>
     </article>
   `).join("");
 
@@ -207,7 +238,44 @@ function renderStrategies(items) {
     });
   });
 
+  document.querySelectorAll("[data-favorite-code]").forEach((button) => {
+    button.addEventListener("click", async (event) => {
+      event.stopPropagation();
+      await toggleFavorite(button.dataset.favoriteCode);
+    });
+  });
+
   renderSelectedStrategy();
+}
+
+function renderFavorites() {
+  const favorites = state.favorites
+    .map((code) => state.strategies.find((item) => item.code === code))
+    .filter(Boolean);
+  document.getElementById("favorite-list").innerHTML = favorites.length
+    ? favorites.map((item) => `
+      <article class="mini-card">
+        <strong>${item.title}</strong>
+        <p class="helper-text">${item.strategist}</p>
+      </article>
+    `).join("")
+    : "<p class='helper-text'>还没有收藏的策略。</p>";
+}
+
+async function toggleFavorite(strategyCode) {
+  const exists = state.favorites.includes(strategyCode);
+  const response = await fetchJson(
+    exists ? `/api/me/favorites/${strategyCode}` : "/api/me/favorites",
+    exists
+      ? { method: "DELETE" }
+      : {
+          method: "POST",
+          body: JSON.stringify({ strategy_code: strategyCode }),
+        }
+  );
+  state.favorites = response.items;
+  renderStrategies(state.strategies);
+  renderFavorites();
 }
 
 function renderBacktestResult(result) {
@@ -231,6 +299,8 @@ function renderBacktestResult(result) {
   state.lastCandles = result.candles || [];
   state.lastSignals = result.signals || [];
   state.movingAverages = result.moving_averages || null;
+  state.candleOffset = 0;
+  state.crosshairIndex = null;
   renderChartLegend();
   drawCandlesChart();
   drawEquityChart();
@@ -318,7 +388,8 @@ function drawEquityChart() {
 
 function drawCandlesChart() {
   const canvas = document.getElementById("candles-chart");
-  const candles = state.lastCandles.slice(-state.candlePeriod);
+  const viewport = getCandleViewport();
+  const candles = viewport.candles;
   const signals = state.lastSignals.filter((item) => candles.some((bar) => bar.date === item.date));
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(rect.width, 280);
@@ -336,19 +407,21 @@ function drawCandlesChart() {
 
   const highs = candles.map((item) => item.high);
   const lows = candles.map((item) => item.low);
+  const volumes = candles.map((item) => item.volume || 0);
   const min = Math.min(...lows);
   const max = Math.max(...highs);
   const padX = 18;
   const padY = 18;
   const usableWidth = width - padX * 2;
-  const usableHeight = height - padY * 2;
+  const volumeHeight = 42;
+  const priceHeight = height - padY * 2 - volumeHeight - 10;
   const step = usableWidth / Math.max(candles.length, 1);
   const bodyWidth = Math.max(3, step * 0.55);
 
   ctx.strokeStyle = "#ece2d5";
   ctx.lineWidth = 1;
   [0, 0.5, 1].forEach((ratio) => {
-    const y = padY + usableHeight * ratio;
+    const y = padY + priceHeight * ratio;
     ctx.beginPath();
     ctx.moveTo(padX, y);
     ctx.lineTo(width - padX, y);
@@ -358,10 +431,10 @@ function drawCandlesChart() {
   candles.forEach((item, index) => {
     const ratio = Math.max(max - min, 1e-9);
     const x = padX + step * index + step / 2;
-    const highY = padY + (1 - (item.high - min) / ratio) * usableHeight;
-    const lowY = padY + (1 - (item.low - min) / ratio) * usableHeight;
-    const openY = padY + (1 - (item.open - min) / ratio) * usableHeight;
-    const closeY = padY + (1 - (item.close - min) / ratio) * usableHeight;
+    const highY = padY + (1 - (item.high - min) / ratio) * priceHeight;
+    const lowY = padY + (1 - (item.low - min) / ratio) * priceHeight;
+    const openY = padY + (1 - (item.open - min) / ratio) * priceHeight;
+    const closeY = padY + (1 - (item.close - min) / ratio) * priceHeight;
     const color = item.close >= item.open ? "#dd5840" : "#178560";
     ctx.strokeStyle = color;
     ctx.beginPath();
@@ -372,12 +445,19 @@ function drawCandlesChart() {
     const top = Math.min(openY, closeY);
     const bodyHeight = Math.max(Math.abs(closeY - openY), 2);
     ctx.fillRect(x - bodyWidth / 2, top, bodyWidth, bodyHeight);
+
+    const maxVolume = Math.max(...volumes, 1);
+    const volumeTop = padY + priceHeight + 10;
+    const volumeBarHeight = ((item.volume || 0) / maxVolume) * volumeHeight;
+    ctx.globalAlpha = 0.32;
+    ctx.fillRect(x - bodyWidth / 2, volumeTop + volumeHeight - volumeBarHeight, bodyWidth, volumeBarHeight);
+    ctx.globalAlpha = 1;
   });
 
   if (state.movingAverages) {
     const moving = state.movingAverages;
-    drawOverlayLine(ctx, candles, moving.short.slice(-state.candlePeriod), min, max, padX, padY, usableWidth, usableHeight, "#f59e0b");
-    drawOverlayLine(ctx, candles, moving.long.slice(-state.candlePeriod), min, max, padX, padY, usableWidth, usableHeight, "#2563eb");
+    drawOverlayLine(ctx, moving.short.slice(viewport.start, viewport.end), candles.length, min, max, padX, padY, usableWidth, priceHeight, "#f59e0b");
+    drawOverlayLine(ctx, moving.long.slice(viewport.start, viewport.end), candles.length, min, max, padX, padY, usableWidth, priceHeight, "#2563eb");
   }
 
   signals.forEach((signal) => {
@@ -387,13 +467,32 @@ function drawCandlesChart() {
     }
     const x = padX + step * index + step / 2;
     const ratio = Math.max(max - min, 1e-9);
-    const y = padY + (1 - (candles[index].close - min) / ratio) * usableHeight;
+    const y = padY + (1 - (candles[index].close - min) / ratio) * priceHeight;
     const marker = signal.signal === "BUY" ? "▲" : "▼";
     const color = signal.signal === "BUY" ? "#dc2626" : "#178560";
     ctx.fillStyle = color;
     ctx.font = "12px Microsoft YaHei UI";
     ctx.fillText(marker, x - 4, signal.signal === "BUY" ? y - 8 : y + 18);
   });
+
+  if (state.crosshairIndex !== null && candles[state.crosshairIndex]) {
+    const item = candles[state.crosshairIndex];
+    const x = padX + step * state.crosshairIndex + step / 2;
+    const ratio = Math.max(max - min, 1e-9);
+    const y = padY + (1 - (item.close - min) / ratio) * priceHeight;
+    ctx.strokeStyle = "#94a3b8";
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, padY);
+    ctx.lineTo(x, height - padY);
+    ctx.moveTo(padX, y);
+    ctx.lineTo(width - padX, y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = "#18212b";
+    ctx.font = "12px Microsoft YaHei UI";
+    ctx.fillText(`${item.date} O:${item.open} H:${item.high} L:${item.low} C:${item.close}`, padX, 14);
+  }
 
   ctx.fillStyle = "#6f7884";
   ctx.font = "12px Microsoft YaHei UI";
@@ -403,7 +502,7 @@ function drawCandlesChart() {
   ctx.fillText(last, width - padX - textWidth, height - 6);
 }
 
-function drawOverlayLine(ctx, candles, values, min, max, padX, padY, usableWidth, usableHeight, color) {
+function drawOverlayLine(ctx, values, length, min, max, padX, padY, usableWidth, usableHeight, color) {
   ctx.strokeStyle = color;
   ctx.lineWidth = 1.8;
   ctx.beginPath();
@@ -412,7 +511,7 @@ function drawOverlayLine(ctx, candles, values, min, max, padX, padY, usableWidth
     if (value === null || value === undefined) {
       return;
     }
-    const x = padX + (usableWidth * index) / Math.max(candles.length - 1, 1);
+    const x = padX + (usableWidth * index) / Math.max(length - 1, 1);
     const y = padY + (1 - (value - min) / Math.max(max - min, 1e-9)) * usableHeight;
     if (!hasPoint) {
       ctx.moveTo(x, y);
@@ -424,6 +523,16 @@ function drawOverlayLine(ctx, candles, values, min, max, padX, padY, usableWidth
   if (hasPoint) {
     ctx.stroke();
   }
+}
+
+function getCandleViewport() {
+  const total = state.lastCandles.length;
+  const count = Math.min(state.candlePeriod, total);
+  const maxOffset = Math.max(total - count, 0);
+  const offset = Math.min(Math.max(state.candleOffset, 0), maxOffset);
+  const end = total - offset;
+  const start = Math.max(end - count, 0);
+  return { start, end, candles: state.lastCandles.slice(start, end) };
 }
 
 function bindUi() {
@@ -453,10 +562,26 @@ function bindUi() {
       }
       if (button.dataset.period) {
         state.candlePeriod = Number(button.dataset.period);
+        state.candleOffset = 0;
         document.querySelectorAll("[data-period]").forEach((tab) => tab.classList.toggle("active", tab === button));
         drawCandlesChart();
       }
     });
+  });
+
+  document.getElementById("zoom-in").addEventListener("click", () => {
+    state.candlePeriod = Math.max(10, state.candlePeriod - 10);
+    drawCandlesChart();
+  });
+  document.getElementById("zoom-out").addEventListener("click", () => {
+    state.candlePeriod = Math.min(90, state.candlePeriod + 10);
+    drawCandlesChart();
+  });
+  document.getElementById("reset-view").addEventListener("click", () => {
+    state.candlePeriod = 20;
+    state.candleOffset = 0;
+    state.crosshairIndex = null;
+    drawCandlesChart();
   });
 
   document.querySelectorAll(".market-tab").forEach((button) => {
@@ -520,6 +645,46 @@ function bindUi() {
     }
   });
 
+  const candlesCanvas = document.getElementById("candles-chart");
+  const updateCrosshair = (clientX) => {
+    const rect = candlesCanvas.getBoundingClientRect();
+    const viewport = getCandleViewport();
+    if (!viewport.candles.length) {
+      return;
+    }
+    const ratio = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 0.999);
+    state.crosshairIndex = Math.floor(ratio * viewport.candles.length);
+    drawCandlesChart();
+  };
+
+  candlesCanvas.addEventListener("mousemove", (event) => {
+    if (state.isDraggingChart) {
+      const deltaX = event.clientX - state.dragStartX;
+      const stepShift = Math.round(deltaX / 10);
+      state.candleOffset = Math.max(0, state.dragOffsetSnapshot - stepShift);
+      drawCandlesChart();
+      return;
+    }
+    updateCrosshair(event.clientX);
+  });
+  candlesCanvas.addEventListener("mouseleave", () => {
+    state.crosshairIndex = null;
+    drawCandlesChart();
+  });
+  candlesCanvas.addEventListener("mousedown", (event) => {
+    state.isDraggingChart = true;
+    state.dragStartX = event.clientX;
+    state.dragOffsetSnapshot = state.candleOffset;
+  });
+  window.addEventListener("mouseup", () => {
+    state.isDraggingChart = false;
+  });
+  candlesCanvas.addEventListener("wheel", (event) => {
+    event.preventDefault();
+    state.candlePeriod = event.deltaY < 0 ? Math.max(10, state.candlePeriod - 5) : Math.min(90, state.candlePeriod + 5);
+    drawCandlesChart();
+  }, { passive: false });
+
   window.addEventListener("resize", () => {
     if (state.lastCandles.length) {
       drawCandlesChart();
@@ -531,12 +696,14 @@ function bindUi() {
 }
 
 async function bootstrap() {
-  const [auth, dashboard, strategies] = await Promise.all([
+  const [auth, dashboard, strategies, favorites] = await Promise.all([
     fetchJson("/api/auth/status"),
     fetchJson("/api/dashboard"),
     fetchJson("/api/strategies"),
+    fetchJson("/api/me/favorites"),
   ]);
   state.auth = auth;
+  state.favorites = favorites.items || [];
   renderAuth();
   renderStrategies(strategies.items);
   renderDashboard(dashboard);

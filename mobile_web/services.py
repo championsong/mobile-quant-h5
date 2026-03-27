@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from mobile_web.database import get_user_by_username
+from mobile_web.database import get_user_by_username, list_favorites, list_watchlist
 from quant.backtest import BacktestResult, run_backtest
 from quant.data_loader import load_price_data
 from quant.downloader import default_end_date, default_start_date, download_a_share_history
@@ -184,9 +184,12 @@ MARKET_BOARD = {
 
 
 def get_dashboard_payload(username: str | None = None) -> dict:
-    user = get_user_by_username(username or "") or get_user_by_username("guest")
+    resolved_username = username or "guest"
+    user = get_user_by_username(resolved_username) or get_user_by_username("guest")
     if user is None:
         raise ValueError("未初始化默认用户")
+    watchlist_items = list_watchlist(resolved_username)
+    favorite_codes = list_favorites(resolved_username)
     return {
         "profile": {
             "nickname": user["display_name"],
@@ -207,12 +210,8 @@ def get_dashboard_payload(username: str | None = None) -> dict:
             {"symbol": "600258", "name": "首旅酒店", "weight": "12%", "pnl": "-1.2%"},
             {"symbol": "600519", "name": "贵州茅台", "weight": "10%", "pnl": "+5.4%"},
         ],
-        "watchlist": [
-            "趋势突破组合",
-            "银行低波动组合",
-            "超跌修复观察池",
-            "量价异动监控池",
-        ],
+        "watchlist": watchlist_items,
+        "favorite_strategies": favorite_codes,
         "market_board": MARKET_BOARD,
     }
 
@@ -292,6 +291,7 @@ def serialize_backtest_result(result: BacktestResult, bars: list) -> dict:
                 "high": round(bar.high or bar.close, 2),
                 "low": round(bar.low or bar.close, 2),
                 "close": round(bar.close, 2),
+                "volume": round(bar.volume or 0, 2),
             }
             for bar in bars[-90:]
         ],
