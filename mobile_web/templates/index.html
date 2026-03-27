@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+    <title>量化交易 H5 面板</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+  </head>
+  <body>
+    <div class="mobile-shell">
+      <header class="top-hero" id="overview">
+        <div class="status-row">
+          <span class="status-pill">H5 手机版</span>
+          <span class="status-pill status-pill--soft">策略可切换</span>
+        </div>
+        <h1>量化交易移动控制台</h1>
+        <p class="hero-text">
+          把个人资产、券商接入、策略广场和一键回测压缩进适合手机单手操作的页面结构里。
+        </p>
+        <div class="hero-stats" id="summary-cards"></div>
+      </header>
+
+      <main class="page-stack">
+        <section class="section-card profile-card">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">账户总览</p>
+              <h2>个人数据面板</h2>
+            </div>
+            <span class="section-badge">移动优先</span>
+          </div>
+          <div id="profile-block"></div>
+        </section>
+
+        <section class="section-card quick-card">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">当前策略</p>
+              <h2>策略快捷入口</h2>
+            </div>
+            <span class="section-badge section-badge--warm">一键回测</span>
+          </div>
+          <div class="selected-strategy" id="selected-strategy"></div>
+          <a class="primary-cta" href="#trade">去运行回测</a>
+        </section>
+
+        <section class="section-card" id="strategies">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">策略广场</p>
+              <h2>量化交易师策略选择</h2>
+            </div>
+            <span class="section-badge">带介绍</span>
+          </div>
+          <div class="strategy-carousel" id="strategy-list"></div>
+        </section>
+
+        <section class="section-card trade-card" id="trade">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">执行区</p>
+              <h2>移动端回测表单</h2>
+            </div>
+            <span class="section-badge section-badge--green">手机单列布局</span>
+          </div>
+          <form id="backtest-form" class="trade-form">
+            <label>
+              股票代码
+              <input name="symbol" value="000001" maxlength="6" inputmode="numeric">
+            </label>
+            <label>
+              开始日期
+              <input name="start_date" value="2025-01-01" placeholder="YYYY-MM-DD">
+            </label>
+            <label>
+              结束日期
+              <input name="end_date" value="2026-03-27" placeholder="YYYY-MM-DD">
+            </label>
+            <label>
+              初始资金
+              <input name="initial_capital" type="number" value="100000">
+            </label>
+            <label>
+              仓位比例
+              <input name="position_ratio" type="number" step="0.01" value="0.95">
+            </label>
+            <label>
+              复权方式
+              <select name="adjust">
+                <option value="">不复权</option>
+                <option value="qfq" selected>前复权</option>
+                <option value="hfq">后复权</option>
+              </select>
+            </label>
+            <input type="hidden" name="strategy_code" id="strategy-code" value="beichen_ma_fast">
+            <button type="submit" class="primary-submit">运行当前策略</button>
+          </form>
+          <div class="result-summary" id="result-summary">
+            <p>选择一个策略后，这里会显示收益、回撤、胜率和资金结果。</p>
+          </div>
+          <canvas id="equity-chart" height="220"></canvas>
+          <div class="signal-list" id="signal-list"></div>
+        </section>
+
+        <section class="section-card" id="account">
+          <div class="section-head">
+            <div>
+              <p class="section-kicker">连接层</p>
+              <h2>券商接入与持仓</h2>
+            </div>
+            <span class="section-badge">可扩展</span>
+          </div>
+          <div class="broker-list" id="broker-list"></div>
+          <div class="subgrid">
+            <div>
+              <h3>当前持仓</h3>
+              <div id="positions" class="stack-list"></div>
+            </div>
+            <div>
+              <h3>观察池</h3>
+              <ul id="watchlist" class="watch-list"></ul>
+            </div>
+          </div>
+        </section>
+      </main>
+
+      <nav class="bottom-nav">
+        <a href="#overview" class="bottom-link active">总览</a>
+        <a href="#strategies" class="bottom-link">策略</a>
+        <a href="#trade" class="bottom-link">回测</a>
+        <a href="#account" class="bottom-link">账户</a>
+      </nav>
+    </div>
+    <script src="{{ url_for('static', filename='app.js') }}"></script>
+  </body>
+</html>
