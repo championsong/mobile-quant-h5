@@ -3,132 +3,195 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-    <title>量化交易 H5 面板</title>
+    <title>momo量化</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
   </head>
   <body>
-    <div class="mobile-shell">
-      <header class="top-hero" id="overview">
-        <div class="status-row">
-          <span class="status-pill">H5 手机版</span>
-          <span class="status-pill status-pill--soft">策略可切换</span>
+    <div class="app-shell">
+      <header class="app-header" id="home">
+        <div class="brand-row">
+          <div class="brand-mark">m</div>
+          <div>
+            <p class="brand-eyebrow">momo quant</p>
+            <h1>momo量化</h1>
+          </div>
+          <button class="icon-button" type="button" aria-label="消息">◌</button>
         </div>
-        <h1>量化交易移动控制台</h1>
-        <p class="hero-text">
-          把个人资产、券商接入、策略广场和一键回测压缩进适合手机单手操作的页面结构里。
-        </p>
-        <div class="hero-stats" id="summary-cards"></div>
+
+        <section class="asset-hero">
+          <div class="asset-hero__top">
+            <div>
+              <p class="mini-label">总资产</p>
+              <h2 id="hero-total-asset">--</h2>
+            </div>
+            <span class="profit-pill" id="hero-delta">--</span>
+          </div>
+          <div class="hero-metrics" id="summary-cards"></div>
+          <div class="quick-actions">
+            <a href="#trade" class="action-chip action-chip--primary">立即回测</a>
+            <a href="#strategies" class="action-chip">切换策略</a>
+            <a href="#account" class="action-chip">查看账户</a>
+          </div>
+        </section>
       </header>
 
-      <main class="page-stack">
-        <section class="section-card profile-card">
+      <main class="app-main">
+        <section class="app-card">
           <div class="section-head">
             <div>
-              <p class="section-kicker">账户总览</p>
-              <h2>个人数据面板</h2>
+              <p class="mini-label">账户中心</p>
+              <h3>个人数据面板</h3>
             </div>
-            <span class="section-badge">移动优先</span>
+            <span class="section-tag">专业版</span>
           </div>
           <div id="profile-block"></div>
         </section>
 
-        <section class="section-card quick-card">
+        <section class="app-card">
           <div class="section-head">
             <div>
-              <p class="section-kicker">当前策略</p>
-              <h2>策略快捷入口</h2>
+              <p class="mini-label">当前执行策略</p>
+              <h3>策略摘要</h3>
             </div>
-            <span class="section-badge section-badge--warm">一键回测</span>
+            <span class="section-tag section-tag--warm">已选中</span>
           </div>
-          <div class="selected-strategy" id="selected-strategy"></div>
-          <a class="primary-cta" href="#trade">去运行回测</a>
+          <div id="selected-strategy" class="selected-strategy"></div>
         </section>
 
-        <section class="section-card" id="strategies">
+        <section class="app-card" id="market">
           <div class="section-head">
             <div>
-              <p class="section-kicker">策略广场</p>
-              <h2>量化交易师策略选择</h2>
+              <p class="mini-label">市场观察</p>
+              <h3>自选与持仓</h3>
             </div>
-            <span class="section-badge">带介绍</span>
+            <span class="section-tag">移动看盘</span>
           </div>
-          <div class="strategy-carousel" id="strategy-list"></div>
+          <div class="market-tabs">
+            <button type="button" class="market-tab active" data-market-tab="positions">持仓</button>
+            <button type="button" class="market-tab" data-market-tab="watchlist">观察池</button>
+            <button type="button" class="market-tab" data-market-tab="brokers">券商</button>
+          </div>
+          <div class="market-panel active" id="positions-panel">
+            <div id="positions" class="stack-list"></div>
+          </div>
+          <div class="market-panel" id="watchlist-panel">
+            <ul id="watchlist" class="watch-list"></ul>
+          </div>
+          <div class="market-panel" id="brokers-panel">
+            <div id="broker-list" class="stack-list"></div>
+          </div>
         </section>
 
-        <section class="section-card trade-card" id="trade">
+        <section class="app-card" id="strategies">
           <div class="section-head">
             <div>
-              <p class="section-kicker">执行区</p>
-              <h2>移动端回测表单</h2>
+              <p class="mini-label">策略市场</p>
+              <h3>量化交易师策略库</h3>
             </div>
-            <span class="section-badge section-badge--green">手机单列布局</span>
+            <span class="section-tag section-tag--green">可订阅</span>
+          </div>
+          <div id="strategy-list" class="strategy-list"></div>
+        </section>
+
+        <section class="app-card app-card--trade" id="trade">
+          <div class="section-head">
+            <div>
+              <p class="mini-label">策略执行</p>
+              <h3>移动端一键回测</h3>
+            </div>
+            <span class="section-tag section-tag--warm">高频操作区</span>
           </div>
           <form id="backtest-form" class="trade-form">
-            <label>
-              股票代码
-              <input name="symbol" value="000001" maxlength="6" inputmode="numeric">
-            </label>
-            <label>
-              开始日期
-              <input name="start_date" value="2025-01-01" placeholder="YYYY-MM-DD">
-            </label>
-            <label>
-              结束日期
-              <input name="end_date" value="2026-03-27" placeholder="YYYY-MM-DD">
-            </label>
-            <label>
-              初始资金
-              <input name="initial_capital" type="number" value="100000">
-            </label>
-            <label>
-              仓位比例
-              <input name="position_ratio" type="number" step="0.01" value="0.95">
-            </label>
-            <label>
-              复权方式
-              <select name="adjust">
-                <option value="">不复权</option>
-                <option value="qfq" selected>前复权</option>
-                <option value="hfq">后复权</option>
-              </select>
-            </label>
+            <div class="form-row">
+              <label>
+                股票代码
+                <input name="symbol" value="000001" maxlength="6" inputmode="numeric">
+              </label>
+              <label>
+                复权方式
+                <select name="adjust">
+                  <option value="">不复权</option>
+                  <option value="qfq" selected>前复权</option>
+                  <option value="hfq">后复权</option>
+                </select>
+              </label>
+            </div>
+            <div class="form-row">
+              <label>
+                开始日期
+                <input name="start_date" value="2025-01-01" placeholder="YYYY-MM-DD">
+              </label>
+              <label>
+                结束日期
+                <input name="end_date" value="2026-03-27" placeholder="YYYY-MM-DD">
+              </label>
+            </div>
+            <div class="form-row">
+              <label>
+                初始资金
+                <input name="initial_capital" type="number" value="100000">
+              </label>
+              <label>
+                仓位比例
+                <input name="position_ratio" type="number" step="0.01" value="0.95">
+              </label>
+            </div>
             <input type="hidden" name="strategy_code" id="strategy-code" value="beichen_ma_fast">
             <button type="submit" class="primary-submit">运行当前策略</button>
           </form>
-          <div class="result-summary" id="result-summary">
-            <p>选择一个策略后，这里会显示收益、回撤、胜率和资金结果。</p>
+          <div id="result-summary" class="result-summary">
+            <p>选择策略后可直接在手机上完成下载、回测与结果查看。</p>
           </div>
           <canvas id="equity-chart" height="220"></canvas>
-          <div class="signal-list" id="signal-list"></div>
+          <div id="signal-list" class="signal-list"></div>
         </section>
 
-        <section class="section-card" id="account">
+        <section class="app-card" id="account">
           <div class="section-head">
             <div>
-              <p class="section-kicker">连接层</p>
-              <h2>券商接入与持仓</h2>
+              <p class="mini-label">我的</p>
+              <h3>账户与偏好</h3>
             </div>
-            <span class="section-badge">可扩展</span>
+            <span class="section-tag">用户侧</span>
           </div>
-          <div class="broker-list" id="broker-list"></div>
-          <div class="subgrid">
-            <div>
-              <h3>当前持仓</h3>
-              <div id="positions" class="stack-list"></div>
-            </div>
-            <div>
-              <h3>观察池</h3>
-              <ul id="watchlist" class="watch-list"></ul>
-            </div>
+          <div class="account-grid">
+            <article class="mini-card">
+              <strong>风险偏好</strong>
+              <p id="risk-level-text">--</p>
+            </article>
+            <article class="mini-card">
+              <strong>已接券商</strong>
+              <p id="broker-count-text">--</p>
+            </article>
+            <article class="mini-card">
+              <strong>策略数量</strong>
+              <p id="strategy-count-text">--</p>
+            </article>
+            <article class="mini-card">
+              <strong>当前模式</strong>
+              <p>移动 H5</p>
+            </article>
           </div>
         </section>
       </main>
 
-      <nav class="bottom-nav">
-        <a href="#overview" class="bottom-link active">总览</a>
-        <a href="#strategies" class="bottom-link">策略</a>
-        <a href="#trade" class="bottom-link">回测</a>
-        <a href="#account" class="bottom-link">账户</a>
+      <nav class="tabbar">
+        <a href="#home" class="tabbar-item active">
+          <span class="tabbar-icon">⌂</span>
+          <span>首页</span>
+        </a>
+        <a href="#market" class="tabbar-item">
+          <span class="tabbar-icon">≈</span>
+          <span>行情</span>
+        </a>
+        <a href="#trade" class="tabbar-item">
+          <span class="tabbar-icon">●</span>
+          <span>回测</span>
+        </a>
+        <a href="#account" class="tabbar-item">
+          <span class="tabbar-icon">◔</span>
+          <span>我的</span>
+        </a>
       </nav>
     </div>
     <script src="{{ url_for('static', filename='app.js') }}"></script>

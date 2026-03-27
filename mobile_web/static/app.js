@@ -2,6 +2,7 @@ const state = {
   strategies: [],
   activeStrategy: "beichen_ma_fast",
   lastCurve: [],
+  dashboard: null,
 };
 
 async function fetchJson(url, options = {}) {
@@ -17,14 +18,23 @@ async function fetchJson(url, options = {}) {
 }
 
 function renderProfile(data) {
+  state.dashboard = data;
   const profileBlock = document.getElementById("profile-block");
   const summaryCards = document.getElementById("summary-cards");
   const positions = document.getElementById("positions");
   const watchlist = document.getElementById("watchlist");
   const brokerList = document.getElementById("broker-list");
 
+  const totalAsset = data.summary_cards.find(item => item.label === "总资产");
+  const dailyPnl = data.summary_cards.find(item => item.label === "今日盈亏");
+  document.getElementById("hero-total-asset").textContent = totalAsset ? totalAsset.value : "--";
+  document.getElementById("hero-delta").textContent = dailyPnl ? dailyPnl.delta : "--";
+  document.getElementById("risk-level-text").textContent = data.profile.risk_level;
+  document.getElementById("broker-count-text").textContent = `${data.brokers.filter(item => item.status === "ready").length}/${data.brokers.length}`;
+  document.getElementById("strategy-count-text").textContent = `${state.strategies.length || 0} 套`;
+
   profileBlock.innerHTML = `
-    <h3 class="profile-title">${data.profile.nickname}</h3>
+    <h4 class="profile-title">${data.profile.nickname}</h4>
     <p class="profile-sub">${data.profile.membership} · ${data.profile.risk_level}</p>
     <p class="profile-sub">${data.profile.intro}</p>
   `;
@@ -62,8 +72,8 @@ function renderProfile(data) {
 }
 
 function renderSelectedStrategy() {
-  const target = document.getElementById("selected-strategy");
   const strategy = state.strategies.find(item => item.code === state.activeStrategy);
+  const target = document.getElementById("selected-strategy");
   if (!strategy) {
     target.innerHTML = "<p class='helper-text'>请选择一个策略。</p>";
     return;
@@ -80,12 +90,15 @@ function renderSelectedStrategy() {
     </div>
     <p class="helper-text">${strategy.description}</p>
     <p class="helper-text">适用场景：${strategy.fit_for}</p>
+    <div class="tag-row">${strategy.tags.map(tag => `<span>${tag}</span>`).join("")}</div>
   `;
 }
 
 function renderStrategies(items) {
-  const container = document.getElementById("strategy-list");
   state.strategies = items;
+  document.getElementById("strategy-count-text").textContent = `${items.length} 套`;
+
+  const container = document.getElementById("strategy-list");
   container.innerHTML = items.map(item => `
     <article class="strategy-card ${item.code === state.activeStrategy ? "active" : ""}" data-code="${item.code}">
       <div class="strategy-meta">
@@ -106,7 +119,6 @@ function renderStrategies(items) {
       state.activeStrategy = card.dataset.code;
       renderStrategies(state.strategies);
       renderSelectedStrategy();
-      document.getElementById("trade").scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
 
@@ -161,7 +173,7 @@ function drawEquityChart(points) {
   const usableWidth = width - padX * 2;
   const usableHeight = height - padY * 2;
 
-  ctx.strokeStyle = "#eadfce";
+  ctx.strokeStyle = "#e9e0d3";
   ctx.lineWidth = 1;
   [0, 0.5, 1].forEach(ratio => {
     const y = padY + usableHeight * ratio;
@@ -171,8 +183,8 @@ function drawEquityChart(points) {
     ctx.stroke();
   });
 
-  ctx.strokeStyle = "#14805c";
-  ctx.lineWidth = 2.4;
+  ctx.strokeStyle = "#17865f";
+  ctx.lineWidth = 2.6;
   ctx.beginPath();
   points.forEach((point, index) => {
     const x = padX + (usableWidth * index) / Math.max(points.length - 1, 1);
@@ -186,7 +198,7 @@ function drawEquityChart(points) {
   });
   ctx.stroke();
 
-  ctx.fillStyle = "#68727d";
+  ctx.fillStyle = "#6e7784";
   ctx.font = "12px Microsoft YaHei UI";
   ctx.fillText(points[0].date, padX, height - 6);
   const last = points[points.length - 1].date;
@@ -194,11 +206,9 @@ function drawEquityChart(points) {
   ctx.fillText(last, width - padX - textWidth, height - 6);
 }
 
-function bindBottomNav() {
-  const links = [...document.querySelectorAll(".bottom-link")];
-  const sections = links
-    .map(link => document.querySelector(link.getAttribute("href")))
-    .filter(Boolean);
+function bindTabbar() {
+  const links = [...document.querySelectorAll(".tabbar-item")];
+  const sections = links.map(link => document.querySelector(link.getAttribute("href"))).filter(Boolean);
 
   const observer = new IntersectionObserver((entries) => {
     entries.forEach(entry => {
@@ -213,13 +223,24 @@ function bindBottomNav() {
   sections.forEach(section => observer.observe(section));
 }
 
+function bindMarketTabs() {
+  const tabs = [...document.querySelectorAll(".market-tab")];
+  tabs.forEach(tab => {
+    tab.addEventListener("click", () => {
+      tabs.forEach(item => item.classList.toggle("active", item === tab));
+      document.querySelectorAll(".market-panel").forEach(panel => panel.classList.remove("active"));
+      document.getElementById(`${tab.dataset.marketTab}-panel`).classList.add("active");
+    });
+  });
+}
+
 async function loadInitialData() {
   const [dashboard, strategyResponse] = await Promise.all([
     fetchJson("/api/dashboard"),
     fetchJson("/api/strategies"),
   ]);
-  renderProfile(dashboard);
   renderStrategies(strategyResponse.items);
+  renderProfile(dashboard);
 }
 
 document.getElementById("backtest-form").addEventListener("submit", async (event) => {
@@ -248,7 +269,8 @@ window.addEventListener("resize", () => {
   }
 });
 
-bindBottomNav();
+bindTabbar();
+bindMarketTabs();
 loadInitialData().catch((error) => {
   document.getElementById("result-summary").innerHTML = `<p>${error.message}</p>`;
 });
