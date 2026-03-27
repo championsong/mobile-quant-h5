@@ -411,6 +411,7 @@ canvas {
   margin-top: 12px;
   border-radius: 18px;
   background: rgba(255, 255, 255, 0.94);
+  display: block;
   border: 1px solid var(--line);
 }
 

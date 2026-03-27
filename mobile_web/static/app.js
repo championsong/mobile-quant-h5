@@ -306,6 +306,7 @@ function renderBacktestResult(result) {
   state.crosshairIndex = null;
   renderChartLegend();
   drawCandlesChart();
+  drawVolumeChart();
   drawEquityChart();
   drawIndicatorChart();
 }
@@ -391,6 +392,56 @@ function drawEquityChart() {
   );
 }
 
+function drawVolumeChart() {
+  const canvas = document.getElementById("volume-chart");
+  const viewport = getCandleViewport();
+  const candles = viewport.candles;
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(rect.width, 280);
+  const height = 120;
+  const scale = window.devicePixelRatio || 1;
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  if (!candles.length) {
+    return;
+  }
+
+  const volumes = candles.map((item) => item.volume || 0);
+  const maxVolume = Math.max(...volumes, 1);
+  const padX = 18;
+  const padY = 16;
+  const usableWidth = width - padX * 2;
+  const usableHeight = height - padY * 2;
+  const step = usableWidth / Math.max(candles.length, 1);
+  const bodyWidth = Math.max(3, step * 0.55);
+
+  volumes.forEach((value, index) => {
+    const x = padX + step * index + step / 2;
+    const item = candles[index];
+    const color = item.close >= item.open ? "#dd5840" : "#178560";
+    const volumeBarHeight = (value / maxVolume) * usableHeight;
+    ctx.fillStyle = color;
+    ctx.globalAlpha = 0.45;
+    ctx.fillRect(x - bodyWidth / 2, padY + usableHeight - volumeBarHeight, bodyWidth, volumeBarHeight);
+    ctx.globalAlpha = 1;
+  });
+
+  if (state.crosshairIndex !== null && candles[state.crosshairIndex]) {
+    const x = padX + step * state.crosshairIndex + step / 2;
+    ctx.strokeStyle = "#94a3b8";
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath();
+    ctx.moveTo(x, padY);
+    ctx.lineTo(x, height - padY);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+}
+
 function drawCandlesChart() {
   const canvas = document.getElementById("candles-chart");
   const viewport = getCandleViewport();
@@ -412,14 +463,12 @@ function drawCandlesChart() {
 
   const highs = candles.map((item) => item.high);
   const lows = candles.map((item) => item.low);
-  const volumes = candles.map((item) => item.volume || 0);
   const min = Math.min(...lows);
   const max = Math.max(...highs);
   const padX = 18;
   const padY = 18;
   const usableWidth = width - padX * 2;
-  const volumeHeight = 42;
-  const priceHeight = height - padY * 2 - volumeHeight - 10;
+  const priceHeight = height - padY * 2;
   const step = usableWidth / Math.max(candles.length, 1);
   const bodyWidth = Math.max(3, step * 0.55);
 
@@ -451,12 +500,6 @@ function drawCandlesChart() {
     const bodyHeight = Math.max(Math.abs(closeY - openY), 2);
     ctx.fillRect(x - bodyWidth / 2, top, bodyWidth, bodyHeight);
 
-    const maxVolume = Math.max(...volumes, 1);
-    const volumeTop = padY + priceHeight + 10;
-    const volumeBarHeight = ((item.volume || 0) / maxVolume) * volumeHeight;
-    ctx.globalAlpha = 0.32;
-    ctx.fillRect(x - bodyWidth / 2, volumeTop + volumeHeight - volumeBarHeight, bodyWidth, volumeBarHeight);
-    ctx.globalAlpha = 1;
   });
 
   if (state.movingAverages) {
@@ -477,7 +520,7 @@ function drawCandlesChart() {
     }
     const x = padX + step * index + step / 2;
     const ratio = Math.max(max - min, 1e-9);
-    const y = padY + (1 - (candles[index].close - min) / ratio) * priceHeight;
+      const y = padY + (1 - (candles[index].close - min) / ratio) * priceHeight;
     const marker = signal.signal === "BUY" ? "▲" : "▼";
     const color = signal.signal === "BUY" ? "#dc2626" : "#178560";
     ctx.fillStyle = color;
@@ -492,9 +535,9 @@ function drawCandlesChart() {
     const y = padY + (1 - (item.close - min) / ratio) * priceHeight;
     ctx.strokeStyle = "#94a3b8";
     ctx.setLineDash([4, 4]);
-    ctx.beginPath();
-    ctx.moveTo(x, padY);
-    ctx.lineTo(x, height - padY);
+      ctx.beginPath();
+      ctx.moveTo(x, padY);
+      ctx.lineTo(x, height - padY);
     ctx.moveTo(padX, y);
     ctx.lineTo(width - padX, y);
     ctx.stroke();
@@ -561,6 +604,7 @@ function drawIndicatorChart() {
       labels,
       "#7c3aed",
     );
+    drawIndicatorCrosshair(canvas, labels);
     return;
   }
 
@@ -571,6 +615,7 @@ function drawIndicatorChart() {
       labels,
       "#7c3aed",
     );
+    drawIndicatorCrosshair(canvas, labels);
     return;
   }
 
@@ -614,6 +659,26 @@ function drawIndicatorChart() {
 
   drawOverlayLine(ctx, dif, hist.length, min, max, padX, padY, usableWidth, usableHeight, "#2563eb");
   drawOverlayLine(ctx, dea, hist.length, min, max, padX, padY, usableWidth, usableHeight, "#f59e0b");
+  drawIndicatorCrosshair(canvas, labels);
+}
+
+function drawIndicatorCrosshair(canvas, labels) {
+  if (state.crosshairIndex === null || !labels[state.crosshairIndex]) {
+    return;
+  }
+  const ctx = canvas.getContext("2d");
+  const width = canvas.width / (window.devicePixelRatio || 1);
+  const height = canvas.height / (window.devicePixelRatio || 1);
+  const padX = 18;
+  const usableWidth = width - padX * 2;
+  const x = padX + (usableWidth * state.crosshairIndex) / Math.max(labels.length - 1, 1);
+  ctx.strokeStyle = "#94a3b8";
+  ctx.setLineDash([4, 4]);
+  ctx.beginPath();
+  ctx.moveTo(x, 18);
+  ctx.lineTo(x, height - 18);
+  ctx.stroke();
+  ctx.setLineDash([]);
 }
 
 function bindUi() {
@@ -659,11 +724,13 @@ function bindUi() {
   document.getElementById("zoom-in").addEventListener("click", () => {
     state.candlePeriod = Math.max(10, state.candlePeriod - 10);
     drawCandlesChart();
+    drawVolumeChart();
     drawIndicatorChart();
   });
   document.getElementById("zoom-out").addEventListener("click", () => {
     state.candlePeriod = Math.min(90, state.candlePeriod + 10);
     drawCandlesChart();
+    drawVolumeChart();
     drawIndicatorChart();
   });
   document.getElementById("reset-view").addEventListener("click", () => {
@@ -671,6 +738,7 @@ function bindUi() {
     state.candleOffset = 0;
     state.crosshairIndex = null;
     drawCandlesChart();
+    drawVolumeChart();
     drawIndicatorChart();
   });
 
@@ -742,10 +810,12 @@ function bindUi() {
     if (!viewport.candles.length) {
       return;
     }
-    const ratio = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 0.999);
-    state.crosshairIndex = Math.floor(ratio * viewport.candles.length);
-    drawCandlesChart();
-  };
+      const ratio = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 0.999);
+      state.crosshairIndex = Math.floor(ratio * viewport.candles.length);
+      drawCandlesChart();
+      drawVolumeChart();
+      drawIndicatorChart();
+    };
 
   candlesCanvas.addEventListener("mousemove", (event) => {
     if (state.isDraggingChart) {
@@ -761,6 +831,8 @@ function bindUi() {
   candlesCanvas.addEventListener("mouseleave", () => {
     state.crosshairIndex = null;
     drawCandlesChart();
+    drawVolumeChart();
+    drawIndicatorChart();
   });
   candlesCanvas.addEventListener("mousedown", (event) => {
     state.isDraggingChart = true;
@@ -774,12 +846,14 @@ function bindUi() {
     event.preventDefault();
     state.candlePeriod = event.deltaY < 0 ? Math.max(10, state.candlePeriod - 5) : Math.min(90, state.candlePeriod + 5);
     drawCandlesChart();
+    drawVolumeChart();
     drawIndicatorChart();
   }, { passive: false });
 
   window.addEventListener("resize", () => {
     if (state.lastCandles.length) {
       drawCandlesChart();
+      drawVolumeChart();
       drawIndicatorChart();
     }
     if (state.lastCurve.length) {
