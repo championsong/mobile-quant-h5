@@ -182,6 +182,62 @@ MARKET_BOARD = {
     ],
 }
 
+PRO_MARKET = {
+    "active_symbol": "000001",
+    "active_name": "平安银行",
+    "minute_series": [
+        {"time": "09:30", "price": 10.82, "avg": 10.82, "volume": 1200},
+        {"time": "09:35", "price": 10.85, "avg": 10.83, "volume": 1800},
+        {"time": "09:40", "price": 10.88, "avg": 10.84, "volume": 1600},
+        {"time": "09:45", "price": 10.91, "avg": 10.86, "volume": 2200},
+        {"time": "09:50", "price": 10.89, "avg": 10.86, "volume": 1500},
+        {"time": "09:55", "price": 10.94, "avg": 10.87, "volume": 2400},
+        {"time": "10:00", "price": 10.96, "avg": 10.89, "volume": 2800},
+        {"time": "10:05", "price": 10.98, "avg": 10.90, "volume": 2100},
+        {"time": "10:10", "price": 10.93, "avg": 10.90, "volume": 1600},
+        {"time": "10:15", "price": 10.95, "avg": 10.91, "volume": 1300},
+        {"time": "10:20", "price": 10.99, "avg": 10.92, "volume": 2600},
+        {"time": "10:25", "price": 11.02, "avg": 10.94, "volume": 3200},
+        {"time": "10:30", "price": 10.97, "avg": 10.95, "volume": 1800},
+        {"time": "10:35", "price": 10.95, "avg": 10.95, "volume": 1400},
+        {"time": "10:40", "price": 10.92, "avg": 10.95, "volume": 1100},
+        {"time": "10:45", "price": 10.94, "avg": 10.95, "volume": 1000},
+        {"time": "10:50", "price": 10.98, "avg": 10.95, "volume": 1900},
+        {"time": "10:55", "price": 11.01, "avg": 10.96, "volume": 2300},
+        {"time": "11:00", "price": 11.03, "avg": 10.97, "volume": 2600},
+        {"time": "11:05", "price": 11.06, "avg": 10.98, "volume": 3100},
+    ],
+    "order_book": {
+        "asks": [
+            {"level": "卖5", "price": 11.10, "volume": 1820},
+            {"level": "卖4", "price": 11.09, "volume": 1540},
+            {"level": "卖3", "price": 11.08, "volume": 1210},
+            {"level": "卖2", "price": 11.07, "volume": 980},
+            {"level": "卖1", "price": 11.06, "volume": 640},
+        ],
+        "bids": [
+            {"level": "买1", "price": 11.05, "volume": 760},
+            {"level": "买2", "price": 11.04, "volume": 1090},
+            {"level": "买3", "price": 11.03, "volume": 1360},
+            {"level": "买4", "price": 11.02, "volume": 1480},
+            {"level": "买5", "price": 11.01, "volume": 1710},
+        ],
+    },
+    "ticks": [
+        {"time": "11:05:12", "price": 11.06, "volume": 320, "side": "买盘"},
+        {"time": "11:05:05", "price": 11.05, "volume": 180, "side": "卖盘"},
+        {"time": "11:04:58", "price": 11.04, "volume": 260, "side": "中性"},
+        {"time": "11:04:39", "price": 11.03, "volume": 410, "side": "买盘"},
+        {"time": "11:04:10", "price": 11.02, "volume": 120, "side": "卖盘"},
+    ],
+    "sectors": [
+        {"name": "银行", "change_pct": "+1.46%", "leader": "平安银行"},
+        {"name": "人工智能", "change_pct": "+3.84%", "leader": "中科曙光"},
+        {"name": "新能源车", "change_pct": "+2.65%", "leader": "比亚迪"},
+        {"name": "旅游酒店", "change_pct": "-0.52%", "leader": "首旅酒店"},
+    ],
+}
+
 
 def exponential_moving_average(values: list[float], window: int) -> list[float | None]:
     if window <= 0:
@@ -260,6 +316,7 @@ def get_dashboard_payload(username: str | None = None) -> dict:
         "watchlist": watchlist_items,
         "favorite_strategies": favorite_codes,
         "market_board": MARKET_BOARD,
+        "pro_market": PRO_MARKET,
     }
 
 

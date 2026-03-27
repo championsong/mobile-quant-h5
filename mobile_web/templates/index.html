@@ -56,6 +56,32 @@
           <section class="section-card">
             <div class="section-head">
               <div>
+                <p class="tiny-label">专业行情页</p>
+                <h3>分时 · 五档 · 成交 · 板块</h3>
+              </div>
+              <span class="section-chip">终端化</span>
+            </div>
+            <div class="market-hero" id="market-hero"></div>
+            <canvas id="minute-chart" height="220"></canvas>
+            <div class="market-grid">
+              <div class="market-subcard">
+                <h4>五档盘口</h4>
+                <div id="order-book"></div>
+              </div>
+              <div class="market-subcard">
+                <h4>成交明细</h4>
+                <div id="tick-list"></div>
+              </div>
+            </div>
+            <div class="market-subcard">
+              <h4>板块联动</h4>
+              <div id="sector-list" class="stack-list"></div>
+            </div>
+          </section>
+
+          <section class="section-card">
+            <div class="section-head">
+              <div>
                 <p class="tiny-label">策略速览</p>
                 <h3>当前策略摘要</h3>
               </div>
@@ -166,6 +192,7 @@
             <div class="chart-legend" id="chart-legend"></div>
             <div class="chart-stage" id="chart-stage">
               <div class="chart-tooltip hidden-tooltip" id="chart-tooltip"></div>
+              <div class="lock-hint" id="lock-hint">长按锁定十字线，双指缩放，左右拖动平移</div>
               <canvas id="candles-chart" height="240"></canvas>
               <canvas id="volume-chart" height="120"></canvas>
               <canvas id="equity-chart" class="hidden-chart" height="240"></canvas>

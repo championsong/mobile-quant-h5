@@ -23,6 +23,7 @@ const state = {
   touchMode: null,
   pinchDistance: 0,
   pinchPeriodSnapshot: 20,
+  crosshairLocked: false,
 };
 
 async function fetchJson(url, options = {}) {
@@ -109,7 +110,50 @@ function renderDashboard(data) {
   `).join("");
 
   renderMarketBoard();
+  renderProfessionalMarket(data.pro_market);
   renderFavorites();
+}
+
+function renderProfessionalMarket(data) {
+  if (!data) {
+    return;
+  }
+  document.getElementById("market-hero").innerHTML = `
+    <div>
+      <strong>${data.active_symbol} ${data.active_name}</strong>
+      <p class="helper-text">分时走势与盘口结构</p>
+    </div>
+    <div class="positive">${data.minute_series.at(-1)?.price ?? "--"}</div>
+  `;
+
+  document.getElementById("order-book").innerHTML = [
+    ...data.order_book.asks,
+    ...data.order_book.bids,
+  ].map((item) => `
+    <div class="book-row">
+      <span>${item.level}</span>
+      <strong>${item.price}</strong>
+      <span>${item.volume}</span>
+    </div>
+  `).join("");
+
+  document.getElementById("tick-list").innerHTML = data.ticks.map((item) => `
+    <div class="tick-row">
+      <span>${item.time}</span>
+      <strong>${item.price}</strong>
+      <span class="${item.side === "卖盘" ? "negative" : "positive"}">${item.side}</span>
+    </div>
+  `).join("");
+
+  document.getElementById("sector-list").innerHTML = data.sectors.map((item) => `
+    <article class="mini-card">
+      <strong>${item.name}</strong>
+      <p class="helper-text">龙头 ${item.leader}</p>
+      <p class="${item.change_pct.startsWith("-") ? "negative" : "positive"}">${item.change_pct}</p>
+    </article>
+  `).join("");
+
+  drawMinuteChart(data.minute_series);
 }
 
 function renderMarketBoard() {
@@ -343,11 +387,43 @@ function updateChartTooltip(candle) {
   tooltip.innerHTML = `
     <strong>${candle.date}</strong><br>
     开 ${candle.open} 高 ${candle.high} 低 ${candle.low} 收 ${candle.close}<br>
-    量 ${candle.volume ?? 0}
+    量 ${candle.volume ?? 0}${state.crosshairLocked ? "<br>已锁定" : ""}
   `;
 }
 
-function drawLineChart(canvas, values, labels, color) {
+function drawMinuteChart(series) {
+  const canvas = document.getElementById("minute-chart");
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(rect.width, 280);
+  const height = 220;
+  const scale = window.devicePixelRatio || 1;
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  if (!series?.length) {
+    return;
+  }
+
+  const prices = series.map((item) => item.price);
+  const avgs = series.map((item) => item.avg);
+  const min = Math.min(...prices, ...avgs);
+  const max = Math.max(...prices, ...avgs);
+  const padX = 18;
+  const padY = 18;
+  const usableWidth = width - padX * 2;
+  const usableHeight = height - padY * 2;
+
+  drawLineChart(canvas, prices, series.map((item) => item.time), "#2563eb", false);
+
+  const ctx2 = canvas.getContext("2d");
+  ctx2.setTransform(scale, 0, 0, scale, 0, 0);
+  drawOverlayLine(ctx2, avgs, avgs.length, min, max, padX, padY, usableWidth, usableHeight, "#f59e0b");
+}
+
+function drawLineChart(canvas, values, labels, color, drawLabels = true) {
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(rect.width, 280);
   const height = 240;
@@ -393,12 +469,14 @@ function drawLineChart(canvas, values, labels, color) {
   });
   ctx.stroke();
 
-  ctx.fillStyle = "#6f7884";
-  ctx.font = "12px Microsoft YaHei UI";
-  ctx.fillText(labels[0], padX, height - 6);
-  const last = labels[labels.length - 1];
-  const textWidth = ctx.measureText(last).width;
-  ctx.fillText(last, width - padX - textWidth, height - 6);
+  if (drawLabels && labels.length) {
+    ctx.fillStyle = "#6f7884";
+    ctx.font = "12px Microsoft YaHei UI";
+    ctx.fillText(labels[0], padX, height - 6);
+    const last = labels[labels.length - 1];
+    const textWidth = ctx.measureText(last).width;
+    ctx.fillText(last, width - padX - textWidth, height - 6);
+  }
 }
 
 function drawEquityChart() {
@@ -563,6 +641,17 @@ function drawCandlesChart() {
     ctx.fillStyle = "#18212b";
     ctx.font = "12px Microsoft YaHei UI";
     ctx.fillText(`${item.date} O:${item.open} H:${item.high} L:${item.low} C:${item.close}`, padX, 14);
+    const priceLabel = item.close.toFixed(2);
+    const labelWidth = ctx.measureText(priceLabel).width + 14;
+    ctx.fillStyle = "rgba(24,33,43,0.88)";
+    ctx.fillRect(width - labelWidth - 6, y - 10, labelWidth, 20);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(priceLabel, width - labelWidth, y + 4);
+    const timeLabelWidth = ctx.measureText(item.date).width + 14;
+    ctx.fillStyle = "rgba(24,33,43,0.88)";
+    ctx.fillRect(x - timeLabelWidth / 2, height - 26, timeLabelWidth, 20);
+    ctx.fillStyle = "#ffffff";
+    ctx.fillText(item.date, x - timeLabelWidth / 2 + 7, height - 12);
     updateChartTooltip(item);
   } else {
     updateChartTooltip(null);
@@ -831,12 +920,12 @@ function bindUi() {
     if (!viewport.candles.length) {
       return;
     }
-      const ratio = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 0.999);
-      state.crosshairIndex = Math.floor(ratio * viewport.candles.length);
-      drawCandlesChart();
-      drawVolumeChart();
-      drawIndicatorChart();
-    };
+    const ratio = Math.min(Math.max((clientX - rect.left) / rect.width, 0), 0.999);
+    state.crosshairIndex = Math.floor(ratio * viewport.candles.length);
+    drawCandlesChart();
+    drawVolumeChart();
+    drawIndicatorChart();
+  };
 
   candlesCanvas.addEventListener("mousemove", (event) => {
     if (state.isDraggingChart) {
@@ -851,6 +940,9 @@ function bindUi() {
       updateCrosshair(event.clientX);
   });
   candlesCanvas.addEventListener("mouseleave", () => {
+    if (state.crosshairLocked) {
+      return;
+    }
     state.crosshairIndex = null;
     drawCandlesChart();
     drawVolumeChart();
@@ -892,6 +984,8 @@ function bindUi() {
       state.touchMode = "drag";
       state.dragStartX = event.touches[0].clientX;
       state.dragOffsetSnapshot = state.candleOffset;
+      state.crosshairLocked = true;
+      document.getElementById("lock-hint").textContent = "十字线已锁定，双指缩放，左右拖动平移";
       updateCrosshair(event.touches[0].clientX);
     }
   }, { passive: true });
@@ -920,6 +1014,19 @@ function bindUi() {
 
   candlesCanvas.addEventListener("touchend", () => {
     state.touchMode = null;
+  });
+
+  candlesCanvas.addEventListener("dblclick", () => {
+    state.crosshairLocked = !state.crosshairLocked;
+    document.getElementById("lock-hint").textContent = state.crosshairLocked
+      ? "十字线已锁定，双指缩放，左右拖动平移"
+      : "长按锁定十字线，双指缩放，左右拖动平移";
+    if (!state.crosshairLocked) {
+      state.crosshairIndex = null;
+      drawCandlesChart();
+      drawVolumeChart();
+      drawIndicatorChart();
+    }
   });
 
   window.addEventListener("resize", () => {
