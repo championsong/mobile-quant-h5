@@ -263,6 +263,32 @@ body {
   margin-top: 12px;
 }
 
+.chart-legend,
+.auth-mode-switch {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.chart-legend span {
+  display: inline-flex;
+  align-items: center;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(24, 33, 43, 0.06);
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.legend-short {
+  color: #f59e0b !important;
+}
+
+.legend-long {
+  color: #2563eb !important;
+}
+
 .board-tab,
 .chart-tab,
 .market-tab {
@@ -431,6 +457,15 @@ canvas {
 .auth-card {
   display: grid;
   gap: 12px;
+}
+
+.auth-mode.active {
+  background: var(--orange-soft);
+  color: var(--brand-deep);
+}
+
+.hidden-auth-row {
+  display: none !important;
 }
 
 @media (max-width: 420px) {

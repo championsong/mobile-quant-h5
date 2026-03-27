@@ -3,9 +3,11 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from mobile_web.database import get_user_by_username
 from quant.backtest import BacktestResult, run_backtest
 from quant.data_loader import load_price_data
 from quant.downloader import default_end_date, default_start_date, download_a_share_history
+from quant.strategy import moving_average
 
 
 @dataclass(slots=True)
@@ -33,17 +35,6 @@ class StrategyPreset:
     warnings: list[str]
     steps: list[str]
     params: dict[str, float | int]
-
-
-@dataclass(slots=True)
-class DemoUser:
-    username: str
-    password: str
-    display_name: str
-    membership: str
-    risk_level: str
-    intro: str
-    phone_mask: str
 
 
 BROKER_CONNECTORS = [
@@ -171,28 +162,6 @@ STRATEGY_PRESETS = [
 ]
 
 
-DEMO_USERS = {
-    "momo": DemoUser(
-        username="momo",
-        password="momo123",
-        display_name="momo研究员",
-        membership="专业版",
-        risk_level="平衡型",
-        intro="偏好趋势和波段策略组合，关注移动端量化执行体验。",
-        phone_mask="138****6677",
-    ),
-    "guest": DemoUser(
-        username="guest",
-        password="guest123",
-        display_name="访客体验官",
-        membership="体验版",
-        risk_level="稳健型",
-        intro="主要体验策略广场、行情榜单和移动端回测能力。",
-        phone_mask="139****8899",
-    ),
-}
-
-
 MARKET_BOARD = {
     "indices": [
         {"name": "上证指数", "value": "3,268.14", "change_pct": "+0.62%"},
@@ -214,21 +183,17 @@ MARKET_BOARD = {
 }
 
 
-def get_demo_user(username: str | None) -> DemoUser:
-    if username and username in DEMO_USERS:
-        return DEMO_USERS[username]
-    return DEMO_USERS["guest"]
-
-
 def get_dashboard_payload(username: str | None = None) -> dict:
-    user = get_demo_user(username)
+    user = get_user_by_username(username or "") or get_user_by_username("guest")
+    if user is None:
+        raise ValueError("未初始化默认用户")
     return {
         "profile": {
-            "nickname": user.display_name,
-            "membership": user.membership,
-            "risk_level": user.risk_level,
-            "intro": user.intro,
-            "phone_mask": user.phone_mask,
+            "nickname": user["display_name"],
+            "membership": user["membership"],
+            "risk_level": user["risk_level"],
+            "intro": user["intro"],
+            "phone_mask": user["phone_mask"],
         },
         "summary_cards": [
             {"label": "总资产", "value": "1,286,530", "delta": "+2.14%"},
@@ -279,39 +244,6 @@ def get_strategy_preset(code: str) -> StrategyPreset:
 def get_strategy_detail(code: str) -> dict:
     item = get_strategy_preset(code)
     return asdict(item)
-
-
-def authenticate_user(username: str, password: str) -> dict | None:
-    user = DEMO_USERS.get(username)
-    if not user or user.password != password:
-        return None
-    return {
-        "username": user.username,
-        "display_name": user.display_name,
-        "membership": user.membership,
-        "risk_level": user.risk_level,
-        "phone_mask": user.phone_mask,
-    }
-
-
-def get_auth_payload(username: str | None) -> dict:
-    user = get_demo_user(username)
-    is_authenticated = bool(username and username in DEMO_USERS and username != "guest")
-    return {
-        "is_authenticated": is_authenticated,
-        "user": {
-            "username": user.username,
-            "display_name": user.display_name,
-            "membership": user.membership,
-            "risk_level": user.risk_level,
-            "phone_mask": user.phone_mask,
-        },
-        "demo_accounts": [
-            {"username": item.username, "password": item.password}
-            for item in DEMO_USERS.values()
-        ],
-    }
-
 
 def serialize_backtest_result(result: BacktestResult, bars: list) -> dict:
     return {
@@ -400,8 +332,19 @@ def run_preset_backtest(
     result = run_backtest(**params)
 
     payload = serialize_backtest_result(result, bars)
+    closes = [bar.close for bar in bars[-90:]]
+    short_window = int(params.get("short_window", 5))
+    long_window = int(params.get("long_window", 20))
+    short_ma = moving_average(closes, short_window)
+    long_ma = moving_average(closes, long_window)
     payload["strategy_title"] = preset.title
     payload["strategist"] = preset.strategist
     payload["symbol"] = symbol
     payload["csv_path"] = str(Path(csv_path))
+    payload["moving_averages"] = {
+        "short_label": f"MA{short_window}",
+        "long_label": f"MA{long_window}",
+        "short": [round(item, 2) if item is not None else None for item in short_ma],
+        "long": [round(item, 2) if item is not None else None for item in long_ma],
+    }
     return payload

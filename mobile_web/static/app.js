@@ -5,8 +5,12 @@ const state = {
   activeStrategy: "beichen_ma_fast",
   strategyDetail: null,
   boardMode: "gainers",
+  candlePeriod: 20,
+  authMode: "login",
   lastCandles: [],
   lastCurve: [],
+  lastSignals: [],
+  movingAverages: null,
 };
 
 async function fetchJson(url, options = {}) {
@@ -225,8 +229,28 @@ function renderBacktestResult(result) {
 
   state.lastCurve = result.equity_curve || [];
   state.lastCandles = result.candles || [];
+  state.lastSignals = result.signals || [];
+  state.movingAverages = result.moving_averages || null;
+  renderChartLegend();
   drawCandlesChart();
   drawEquityChart();
+}
+
+function renderChartLegend() {
+  const legend = document.getElementById("chart-legend");
+  const moving = state.movingAverages;
+  if (!moving) {
+    legend.innerHTML = "";
+    return;
+  }
+  legend.innerHTML = `
+    <span>红柱: 阳线</span>
+    <span>绿柱: 阴线</span>
+    <span class="legend-short">${moving.short_label}</span>
+    <span class="legend-long">${moving.long_label}</span>
+    <span>▲ 买点</span>
+    <span>▼ 卖点</span>
+  `;
 }
 
 function drawLineChart(canvas, values, labels, color) {
@@ -294,7 +318,8 @@ function drawEquityChart() {
 
 function drawCandlesChart() {
   const canvas = document.getElementById("candles-chart");
-  const candles = state.lastCandles;
+  const candles = state.lastCandles.slice(-state.candlePeriod);
+  const signals = state.lastSignals.filter((item) => candles.some((bar) => bar.date === item.date));
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(rect.width, 280);
   const height = 240;
@@ -349,12 +374,56 @@ function drawCandlesChart() {
     ctx.fillRect(x - bodyWidth / 2, top, bodyWidth, bodyHeight);
   });
 
+  if (state.movingAverages) {
+    const moving = state.movingAverages;
+    drawOverlayLine(ctx, candles, moving.short.slice(-state.candlePeriod), min, max, padX, padY, usableWidth, usableHeight, "#f59e0b");
+    drawOverlayLine(ctx, candles, moving.long.slice(-state.candlePeriod), min, max, padX, padY, usableWidth, usableHeight, "#2563eb");
+  }
+
+  signals.forEach((signal) => {
+    const index = candles.findIndex((item) => item.date === signal.date);
+    if (index < 0) {
+      return;
+    }
+    const x = padX + step * index + step / 2;
+    const ratio = Math.max(max - min, 1e-9);
+    const y = padY + (1 - (candles[index].close - min) / ratio) * usableHeight;
+    const marker = signal.signal === "BUY" ? "▲" : "▼";
+    const color = signal.signal === "BUY" ? "#dc2626" : "#178560";
+    ctx.fillStyle = color;
+    ctx.font = "12px Microsoft YaHei UI";
+    ctx.fillText(marker, x - 4, signal.signal === "BUY" ? y - 8 : y + 18);
+  });
+
   ctx.fillStyle = "#6f7884";
   ctx.font = "12px Microsoft YaHei UI";
   ctx.fillText(candles[0].date, padX, height - 6);
   const last = candles[candles.length - 1].date;
   const textWidth = ctx.measureText(last).width;
   ctx.fillText(last, width - padX - textWidth, height - 6);
+}
+
+function drawOverlayLine(ctx, candles, values, min, max, padX, padY, usableWidth, usableHeight, color) {
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1.8;
+  ctx.beginPath();
+  let hasPoint = false;
+  values.forEach((value, index) => {
+    if (value === null || value === undefined) {
+      return;
+    }
+    const x = padX + (usableWidth * index) / Math.max(candles.length - 1, 1);
+    const y = padY + (1 - (value - min) / Math.max(max - min, 1e-9)) * usableHeight;
+    if (!hasPoint) {
+      ctx.moveTo(x, y);
+      hasPoint = true;
+    } else {
+      ctx.lineTo(x, y);
+    }
+  });
+  if (hasPoint) {
+    ctx.stroke();
+  }
 }
 
 function bindUi() {
@@ -376,9 +445,17 @@ function bindUi() {
 
   document.querySelectorAll(".chart-tab").forEach((button) => {
     button.addEventListener("click", () => {
-      document.querySelectorAll(".chart-tab").forEach((tab) => tab.classList.toggle("active", tab === button));
-      document.getElementById("candles-chart").classList.toggle("hidden-chart", button.dataset.chart !== "candles");
-      document.getElementById("equity-chart").classList.toggle("hidden-chart", button.dataset.chart !== "equity");
+      if (button.dataset.chart) {
+        document.querySelectorAll("[data-chart]").forEach((tab) => tab.classList.toggle("active", tab === button));
+        document.getElementById("candles-chart").classList.toggle("hidden-chart", button.dataset.chart !== "candles");
+        document.getElementById("equity-chart").classList.toggle("hidden-chart", button.dataset.chart !== "equity");
+        return;
+      }
+      if (button.dataset.period) {
+        state.candlePeriod = Number(button.dataset.period);
+        document.querySelectorAll("[data-period]").forEach((tab) => tab.classList.toggle("active", tab === button));
+        drawCandlesChart();
+      }
     });
   });
 
@@ -391,6 +468,8 @@ function bindUi() {
   });
 
   const dialog = document.getElementById("auth-dialog");
+  const displayNameRow = document.getElementById("display-name-row");
+  const authSubmit = document.getElementById("auth-submit");
   document.getElementById("auth-entry").addEventListener("click", async () => {
     if (state.auth?.is_authenticated) {
       await fetchJson("/api/auth/logout", { method: "POST" });
@@ -400,11 +479,21 @@ function bindUi() {
     dialog.showModal();
   });
 
+  document.querySelectorAll(".auth-mode").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.authMode = button.dataset.authMode;
+      document.querySelectorAll(".auth-mode").forEach((item) => item.classList.toggle("active", item === button));
+      const isRegister = state.authMode === "register";
+      displayNameRow.classList.toggle("hidden-auth-row", !isRegister);
+      authSubmit.textContent = isRegister ? "注册" : "登录";
+    });
+  });
+
   document.getElementById("auth-form").addEventListener("submit", async (event) => {
     event.preventDefault();
     const payload = Object.fromEntries(new FormData(event.target).entries());
     try {
-      await fetchJson("/api/auth/login", {
+      await fetchJson(`/api/auth/${state.authMode}`, {
         method: "POST",
         body: JSON.stringify(payload),
       });

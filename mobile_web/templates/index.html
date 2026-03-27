@@ -153,6 +153,12 @@
               <button class="chart-tab active" data-chart="candles">K线图</button>
               <button class="chart-tab" data-chart="equity">收益图</button>
             </div>
+            <div class="chart-switch">
+              <button class="chart-tab active" data-period="20">20日</button>
+              <button class="chart-tab" data-period="60">60日</button>
+              <button class="chart-tab" data-period="90">90日</button>
+            </div>
+            <div class="chart-legend" id="chart-legend"></div>
             <canvas id="candles-chart" height="240"></canvas>
             <canvas id="equity-chart" class="hidden-chart" height="240"></canvas>
             <div id="signal-list" class="signal-list"></div>
@@ -244,6 +250,14 @@
           </div>
           <button class="ghost-button" value="cancel" type="submit">关闭</button>
         </div>
+        <div class="auth-mode-switch">
+          <button class="ghost-button auth-mode active" type="button" data-auth-mode="login">登录</button>
+          <button class="ghost-button auth-mode" type="button" data-auth-mode="register">注册</button>
+        </div>
+        <label id="display-name-row" class="hidden-auth-row">
+          昵称
+          <input name="display_name" value="新用户">
+        </label>
         <label>
           用户名
           <input name="username" value="momo">
@@ -252,7 +266,7 @@
           密码
           <input name="password" type="password" value="momo123">
         </label>
-        <button class="primary-submit" type="submit">登录</button>
+        <button class="primary-submit" type="submit" id="auth-submit">登录</button>
         <p class="helper-text">体验账号：momo / momo123，guest / guest123</p>
       </form>
     </dialog>
