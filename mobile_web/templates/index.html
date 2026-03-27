@@ -8,192 +8,255 @@
   </head>
   <body>
     <div class="app-shell">
-      <header class="app-header" id="home">
-        <div class="brand-row">
+      <header class="app-topbar">
+        <div class="brand-lockup">
           <div class="brand-mark">m</div>
           <div>
-            <p class="brand-eyebrow">momo quant</p>
+            <p class="brand-sub">momo quant</p>
             <h1>momo量化</h1>
           </div>
-          <button class="icon-button" type="button" aria-label="消息">◌</button>
         </div>
-
-        <section class="asset-hero">
-          <div class="asset-hero__top">
-            <div>
-              <p class="mini-label">总资产</p>
-              <h2 id="hero-total-asset">--</h2>
-            </div>
-            <span class="profit-pill" id="hero-delta">--</span>
-          </div>
-          <div class="hero-metrics" id="summary-cards"></div>
-          <div class="quick-actions">
-            <a href="#trade" class="action-chip action-chip--primary">立即回测</a>
-            <a href="#strategies" class="action-chip">切换策略</a>
-            <a href="#account" class="action-chip">查看账户</a>
-          </div>
-        </section>
+        <button class="ghost-button" type="button" id="auth-entry">登录</button>
       </header>
 
-      <main class="app-main">
-        <section class="app-card">
-          <div class="section-head">
-            <div>
-              <p class="mini-label">账户中心</p>
-              <h3>个人数据面板</h3>
+      <main class="screen-stack">
+        <section class="screen active" id="screen-home">
+          <section class="hero-card">
+            <div class="hero-row">
+              <div>
+                <p class="tiny-label">总资产</p>
+                <h2 id="hero-total-asset">--</h2>
+              </div>
+              <span class="change-pill" id="hero-delta">--</span>
             </div>
-            <span class="section-tag">专业版</span>
-          </div>
-          <div id="profile-block"></div>
+            <div class="summary-grid" id="summary-cards"></div>
+            <div class="quick-grid">
+              <button class="quick-chip quick-chip--primary" data-jump="screen-trade">立即回测</button>
+              <button class="quick-chip" data-jump="screen-strategy">选策略</button>
+              <button class="quick-chip" data-jump="screen-account">看我的</button>
+            </div>
+          </section>
+
+          <section class="section-card">
+            <div class="section-head">
+              <div>
+                <p class="tiny-label">行情总览</p>
+                <h3>首页行情榜单</h3>
+              </div>
+              <span class="section-chip">实时感</span>
+            </div>
+            <div class="index-strip" id="index-strip"></div>
+            <div class="board-switch">
+              <button class="board-tab active" data-board="gainers">涨幅榜</button>
+              <button class="board-tab" data-board="losers">跌幅榜</button>
+            </div>
+            <div class="leaderboard" id="leaderboard"></div>
+          </section>
+
+          <section class="section-card">
+            <div class="section-head">
+              <div>
+                <p class="tiny-label">策略速览</p>
+                <h3>当前策略摘要</h3>
+              </div>
+              <span class="section-chip section-chip--warm">精选</span>
+            </div>
+            <div class="selected-strategy" id="selected-strategy"></div>
+          </section>
         </section>
 
-        <section class="app-card">
-          <div class="section-head">
-            <div>
-              <p class="mini-label">当前执行策略</p>
-              <h3>策略摘要</h3>
+        <section class="screen" id="screen-strategy">
+          <section class="section-card">
+            <div class="section-head">
+              <div>
+                <p class="tiny-label">策略市场</p>
+                <h3>量化交易师策略库</h3>
+              </div>
+              <span class="section-chip section-chip--green">可订阅</span>
             </div>
-            <span class="section-tag section-tag--warm">已选中</span>
-          </div>
-          <div id="selected-strategy" class="selected-strategy"></div>
+            <div class="strategy-list" id="strategy-list"></div>
+          </section>
+
+          <section class="section-card detail-card">
+            <div class="section-head">
+              <div>
+                <p class="tiny-label">策略详情页</p>
+                <h3 id="detail-title">选择一个策略</h3>
+              </div>
+              <span class="section-chip" id="detail-risk">--</span>
+            </div>
+            <div id="strategy-detail"></div>
+          </section>
         </section>
 
-        <section class="app-card" id="market">
-          <div class="section-head">
-            <div>
-              <p class="mini-label">市场观察</p>
-              <h3>自选与持仓</h3>
+        <section class="screen" id="screen-trade">
+          <section class="section-card">
+            <div class="section-head">
+              <div>
+                <p class="tiny-label">策略执行</p>
+                <h3>一键回测中心</h3>
+              </div>
+              <span class="section-chip section-chip--warm">高频操作</span>
             </div>
-            <span class="section-tag">移动看盘</span>
-          </div>
-          <div class="market-tabs">
-            <button type="button" class="market-tab active" data-market-tab="positions">持仓</button>
-            <button type="button" class="market-tab" data-market-tab="watchlist">观察池</button>
-            <button type="button" class="market-tab" data-market-tab="brokers">券商</button>
-          </div>
-          <div class="market-panel active" id="positions-panel">
-            <div id="positions" class="stack-list"></div>
-          </div>
-          <div class="market-panel" id="watchlist-panel">
-            <ul id="watchlist" class="watch-list"></ul>
-          </div>
-          <div class="market-panel" id="brokers-panel">
-            <div id="broker-list" class="stack-list"></div>
-          </div>
+            <form id="backtest-form" class="trade-form">
+              <div class="form-row">
+                <label>
+                  股票代码
+                  <input name="symbol" value="000001" maxlength="6" inputmode="numeric">
+                </label>
+                <label>
+                  复权方式
+                  <select name="adjust">
+                    <option value="">不复权</option>
+                    <option value="qfq" selected>前复权</option>
+                    <option value="hfq">后复权</option>
+                  </select>
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  开始日期
+                  <input name="start_date" value="2025-01-01" placeholder="YYYY-MM-DD">
+                </label>
+                <label>
+                  结束日期
+                  <input name="end_date" value="2026-03-27" placeholder="YYYY-MM-DD">
+                </label>
+              </div>
+              <div class="form-row">
+                <label>
+                  初始资金
+                  <input name="initial_capital" type="number" value="100000">
+                </label>
+                <label>
+                  仓位比例
+                  <input name="position_ratio" type="number" step="0.01" value="0.95">
+                </label>
+              </div>
+              <input type="hidden" name="strategy_code" id="strategy-code" value="beichen_ma_fast">
+              <button type="submit" class="primary-submit">运行当前策略</button>
+            </form>
+          </section>
+
+          <section class="section-card">
+            <div class="section-head">
+              <div>
+                <p class="tiny-label">回测结果</p>
+                <h3>收益与信号</h3>
+              </div>
+              <span class="section-chip">可视化</span>
+            </div>
+            <div id="result-summary" class="result-summary">
+              <p>选择策略后，可直接查看收益、回撤、胜率和交易信号。</p>
+            </div>
+            <div class="chart-switch">
+              <button class="chart-tab active" data-chart="candles">K线图</button>
+              <button class="chart-tab" data-chart="equity">收益图</button>
+            </div>
+            <canvas id="candles-chart" height="240"></canvas>
+            <canvas id="equity-chart" class="hidden-chart" height="240"></canvas>
+            <div id="signal-list" class="signal-list"></div>
+          </section>
         </section>
 
-        <section class="app-card" id="strategies">
-          <div class="section-head">
-            <div>
-              <p class="mini-label">策略市场</p>
-              <h3>量化交易师策略库</h3>
+        <section class="screen" id="screen-account">
+          <section class="section-card">
+            <div class="section-head">
+              <div>
+                <p class="tiny-label">我的页面</p>
+                <h3>用户中心</h3>
+              </div>
+              <span class="section-chip">登录体系</span>
             </div>
-            <span class="section-tag section-tag--green">可订阅</span>
-          </div>
-          <div id="strategy-list" class="strategy-list"></div>
-        </section>
+            <div id="account-profile" class="account-profile"></div>
+            <div class="account-grid">
+              <article class="mini-card">
+                <strong>风险偏好</strong>
+                <p id="risk-level-text">--</p>
+              </article>
+              <article class="mini-card">
+                <strong>已接券商</strong>
+                <p id="broker-count-text">--</p>
+              </article>
+              <article class="mini-card">
+                <strong>策略数量</strong>
+                <p id="strategy-count-text">--</p>
+              </article>
+              <article class="mini-card">
+                <strong>手机号</strong>
+                <p id="phone-mask-text">--</p>
+              </article>
+            </div>
+          </section>
 
-        <section class="app-card app-card--trade" id="trade">
-          <div class="section-head">
-            <div>
-              <p class="mini-label">策略执行</p>
-              <h3>移动端一键回测</h3>
+          <section class="section-card">
+            <div class="section-head">
+              <div>
+                <p class="tiny-label">账户连接</p>
+                <h3>券商与持仓</h3>
+              </div>
+              <span class="section-chip">扩展层</span>
             </div>
-            <span class="section-tag section-tag--warm">高频操作区</span>
-          </div>
-          <form id="backtest-form" class="trade-form">
-            <div class="form-row">
-              <label>
-                股票代码
-                <input name="symbol" value="000001" maxlength="6" inputmode="numeric">
-              </label>
-              <label>
-                复权方式
-                <select name="adjust">
-                  <option value="">不复权</option>
-                  <option value="qfq" selected>前复权</option>
-                  <option value="hfq">后复权</option>
-                </select>
-              </label>
+            <div class="market-switch">
+              <button class="market-tab active" data-market-panel="positions">持仓</button>
+              <button class="market-tab" data-market-panel="watchlist">观察池</button>
+              <button class="market-tab" data-market-panel="brokers">券商</button>
             </div>
-            <div class="form-row">
-              <label>
-                开始日期
-                <input name="start_date" value="2025-01-01" placeholder="YYYY-MM-DD">
-              </label>
-              <label>
-                结束日期
-                <input name="end_date" value="2026-03-27" placeholder="YYYY-MM-DD">
-              </label>
+            <div class="market-panel active" id="positions-panel">
+              <div id="positions" class="stack-list"></div>
             </div>
-            <div class="form-row">
-              <label>
-                初始资金
-                <input name="initial_capital" type="number" value="100000">
-              </label>
-              <label>
-                仓位比例
-                <input name="position_ratio" type="number" step="0.01" value="0.95">
-              </label>
+            <div class="market-panel" id="watchlist-panel">
+              <ul id="watchlist" class="watch-list"></ul>
             </div>
-            <input type="hidden" name="strategy_code" id="strategy-code" value="beichen_ma_fast">
-            <button type="submit" class="primary-submit">运行当前策略</button>
-          </form>
-          <div id="result-summary" class="result-summary">
-            <p>选择策略后可直接在手机上完成下载、回测与结果查看。</p>
-          </div>
-          <canvas id="equity-chart" height="220"></canvas>
-          <div id="signal-list" class="signal-list"></div>
-        </section>
-
-        <section class="app-card" id="account">
-          <div class="section-head">
-            <div>
-              <p class="mini-label">我的</p>
-              <h3>账户与偏好</h3>
+            <div class="market-panel" id="brokers-panel">
+              <div id="broker-list" class="stack-list"></div>
             </div>
-            <span class="section-tag">用户侧</span>
-          </div>
-          <div class="account-grid">
-            <article class="mini-card">
-              <strong>风险偏好</strong>
-              <p id="risk-level-text">--</p>
-            </article>
-            <article class="mini-card">
-              <strong>已接券商</strong>
-              <p id="broker-count-text">--</p>
-            </article>
-            <article class="mini-card">
-              <strong>策略数量</strong>
-              <p id="strategy-count-text">--</p>
-            </article>
-            <article class="mini-card">
-              <strong>当前模式</strong>
-              <p>移动 H5</p>
-            </article>
-          </div>
+          </section>
         </section>
       </main>
 
       <nav class="tabbar">
-        <a href="#home" class="tabbar-item active">
+        <button class="tabbar-item active" data-screen="screen-home">
           <span class="tabbar-icon">⌂</span>
           <span>首页</span>
-        </a>
-        <a href="#market" class="tabbar-item">
-          <span class="tabbar-icon">≈</span>
-          <span>行情</span>
-        </a>
-        <a href="#trade" class="tabbar-item">
+        </button>
+        <button class="tabbar-item" data-screen="screen-strategy">
+          <span class="tabbar-icon">◇</span>
+          <span>策略</span>
+        </button>
+        <button class="tabbar-item" data-screen="screen-trade">
           <span class="tabbar-icon">●</span>
           <span>回测</span>
-        </a>
-        <a href="#account" class="tabbar-item">
+        </button>
+        <button class="tabbar-item" data-screen="screen-account">
           <span class="tabbar-icon">◔</span>
           <span>我的</span>
-        </a>
+        </button>
       </nav>
     </div>
+
+    <dialog id="auth-dialog" class="auth-dialog">
+      <form method="dialog" class="auth-card" id="auth-form">
+        <div class="section-head">
+          <div>
+            <p class="tiny-label">登录</p>
+            <h3>进入 momo量化</h3>
+          </div>
+          <button class="ghost-button" value="cancel" type="submit">关闭</button>
+        </div>
+        <label>
+          用户名
+          <input name="username" value="momo">
+        </label>
+        <label>
+          密码
+          <input name="password" type="password" value="momo123">
+        </label>
+        <button class="primary-submit" type="submit">登录</button>
+        <p class="helper-text">体验账号：momo / momo123，guest / guest123</p>
+      </form>
+    </dialog>
+
     <script src="{{ url_for('static', filename='app.js') }}"></script>
   </body>
 </html>

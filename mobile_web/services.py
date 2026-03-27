@@ -27,7 +27,23 @@ class StrategyPreset:
     fit_for: str
     risk_level: str
     tags: list[str]
+    hero: str
+    philosophy: str
+    strengths: list[str]
+    warnings: list[str]
+    steps: list[str]
     params: dict[str, float | int]
+
+
+@dataclass(slots=True)
+class DemoUser:
+    username: str
+    password: str
+    display_name: str
+    membership: str
+    risk_level: str
+    intro: str
+    phone_mask: str
 
 
 BROKER_CONNECTORS = [
@@ -35,21 +51,21 @@ BROKER_CONNECTORS = [
         code="sim",
         name="模拟交易账户",
         status="ready",
-        description="默认启用，用于演示持仓、资金曲线和策略下单流程。",
+        description="默认启用，负责演示资金面板、持仓变化、策略下单和风控联动。",
         features=["资金总览", "模拟持仓", "策略联动", "风控演示"],
     ),
     BrokerConnector(
         code="qmt",
-        name="QMT 网关适配",
+        name="QMT 交易终端",
         status="config_required",
-        description="预留给本地量化终端接入，需你后续配置交易环境与账户权限。",
+        description="为本地量化终端预留，可同步账户、委托和成交回报。",
         features=["实盘下单", "持仓同步", "委托回报", "账户查询"],
     ),
     BrokerConnector(
         code="opend",
-        name="OpenD 网关适配",
+        name="OpenD 网关",
         status="config_required",
-        description="适合做移动端与桌面端联动，后续可增加港美股或多市场支持。",
+        description="适合扩展多市场能力，便于后续接入更丰富的券商能力。",
         features=["账户连接", "行情订阅", "交易下单", "订单跟踪"],
     ),
 ]
@@ -61,10 +77,15 @@ STRATEGY_PRESETS = [
         title="北辰趋势快线",
         strategist="北辰趋势研究员",
         engine="ma_cross",
-        description="用 5 日和 20 日均线捕捉中短波段启动，适合想快速识别趋势切换的用户。",
-        fit_for="震荡转趋势、热点轮动、轻仓试错",
+        description="用 5 日和 20 日均线捕捉趋势启动，适合热点轮动中的快速跟随。",
+        fit_for="震荡转趋势、热点切换、轻仓试错",
         risk_level="中",
         tags=["双均线", "趋势跟随", "A股"],
+        hero="更适合想要在趋势刚启动时介入、又不想把持仓拉得太久的用户。",
+        philosophy="先确认趋势，再参与波段，宁可慢一步，也要避免频繁在噪音里追涨杀跌。",
+        strengths=["信号清晰", "参数直观", "适合手机端快速选择"],
+        warnings=["震荡行情容易来回打脸", "不适合极短线日内搏杀"],
+        steps=["短均线上穿长均线时买入", "短均线跌破长均线时卖出", "严格控制单次仓位"],
         params={"short_window": 5, "long_window": 20},
     ),
     StrategyPreset(
@@ -72,10 +93,15 @@ STRATEGY_PRESETS = [
         title="岚月稳健均线",
         strategist="岚月波段交易师",
         engine="ma_cross",
-        description="采用 10 日和 30 日均线过滤噪音，偏稳健，适合中线趋势持有。",
-        fit_for="慢牛结构、主升浪跟随、回撤容忍度较低",
+        description="使用 10 日和 30 日均线过滤噪音，交易频率更低，更偏中线。",
+        fit_for="主升浪跟随、慢牛结构、低频波段",
         risk_level="中低",
         tags=["双均线", "稳健", "中线"],
+        hero="更适合对回撤容忍度一般、希望少做决策但保持纪律的用户。",
+        philosophy="把交易次数降下来，用更长周期换更稳定的趋势确认。",
+        strengths=["更稳健", "换手率较低", "更适合持有型用户"],
+        warnings=["启动信号更慢", "可能错过早期加速段"],
+        steps=["10 日均线上穿 30 日均线买入", "10 日均线下破 30 日均线卖出", "持仓中减少频繁调参"],
         params={"short_window": 10, "long_window": 30},
     ),
     StrategyPreset(
@@ -83,10 +109,15 @@ STRATEGY_PRESETS = [
         title="白露超跌反弹",
         strategist="白露逆势交易师",
         engine="rsi_reversal",
-        description="关注 RSI 脱离超卖区的反转机会，适合短线博弈超跌修复。",
-        fit_for="情绪冰点后的技术修复、短期反弹",
+        description="关注 RSI 从超卖区回升的反转信号，适合超跌修复与情绪回暖阶段。",
+        fit_for="情绪冰点修复、短期技术反弹、逆势捕捉",
         risk_level="中高",
         tags=["RSI", "反转", "短线"],
+        hero="更适合愿意捕捉修复性机会、接受更高噪音和更高判断门槛的用户。",
+        philosophy="在极端悲观后等待资金回流，拿最先被修复的一段利润。",
+        strengths=["切入点灵敏", "适合反弹交易", "和趋势策略形成互补"],
+        warnings=["容易出现假反弹", "止损纪律要求更高"],
+        steps=["RSI 低于超卖阈值后重新站回阈值上方买入", "RSI 从超买区回落时卖出", "避免在单边下跌中连续抄底"],
         params={"rsi_window": 14, "rsi_oversold": 30, "rsi_overbought": 70},
     ),
     StrategyPreset(
@@ -94,10 +125,15 @@ STRATEGY_PRESETS = [
         title="赤霄动量反转",
         strategist="赤霄日内交易师",
         engine="rsi_reversal",
-        description="缩短 RSI 周期并提高阈值敏感度，出手更快，也更容易被噪音干扰。",
-        fit_for="高波动标的、激进风格、快进快出",
+        description="缩短 RSI 周期并提高阈值敏感度，适合激进型用户做快速切换。",
+        fit_for="高波动标的、快进快出、激进风格",
         risk_level="高",
-        tags=["RSI", "激进", "波动"],
+        tags=["RSI", "激进", "高波动"],
+        hero="更适合接受高频信号和更高回撤的用户，不建议重仓使用。",
+        philosophy="在波动里找节奏，靠速度和纪律，不靠重仓死扛。",
+        strengths=["反应更快", "更适合高波动环境", "信号密集"],
+        warnings=["误触发更多", "不适合没有止损习惯的用户"],
+        steps=["更短周期追踪 RSI", "出现敏感反转即执行", "更依赖仓位和风控"],
         params={"rsi_window": 9, "rsi_oversold": 25, "rsi_overbought": 75},
     ),
     StrategyPreset(
@@ -105,38 +141,99 @@ STRATEGY_PRESETS = [
         title="破晓 20 日突破",
         strategist="破晓趋势交易师",
         engine="donchian_breakout",
-        description="当价格站上 20 日高点时参与趋势扩张，强调顺势和纪律止损。",
-        fit_for="强趋势板块、放量突破、龙头跟随",
+        description="当价格突破 20 日高点时参与趋势扩张，强调顺势、强势和纪律退出。",
+        fit_for="放量突破、强趋势板块、龙头跟随",
         risk_level="中高",
         tags=["唐奇安", "突破", "趋势"],
+        hero="更适合强势市场环境，面对突破后快速拉升时有较好执行体验。",
+        philosophy="不在底部猜测，只在强势确认后参与，拿一段最干净的趋势。",
+        strengths=["顺势清晰", "突破结构易理解", "适合热点板块"],
+        warnings=["假突破风险高", "追涨时点位要求严格"],
+        steps=["收盘价突破 20 日高点买入", "跌破区间低点退出", "避免在无量突破中重仓"],
         params={"breakout_window": 20},
     ),
     StrategyPreset(
         code="yuanhang_breakout_55",
         title="远航长波段突破",
-        strategist="远航CTA交易师",
+        strategist="远航 CTA 交易师",
         engine="donchian_breakout",
-        description="扩大突破周期到 55 日，降低交易频率，偏向更大级别趋势。",
-        fit_for="低频交易、长波段、耐心持有",
+        description="把突破周期拉长到 55 日，降低噪音和交易频率，更像大级别趋势策略。",
+        fit_for="低频交易、长波段持有、耐心型用户",
         risk_level="中",
         tags=["唐奇安", "低频", "长趋势"],
+        hero="更适合不想频繁盯盘、偏好趋势大段落的人群。",
+        philosophy="用时间换确定性，让真正的大趋势自己展开。",
+        strengths=["低频省心", "趋势过滤能力更强", "适合组合中的中枢策略"],
+        warnings=["等待时间更长", "短期收益体验可能偏弱"],
+        steps=["突破 55 日高点买入", "跌破 55 日低点退出", "保持耐心，不轻易中途干预"],
         params={"breakout_window": 55},
     ),
 ]
 
 
-def get_dashboard_payload() -> dict:
+DEMO_USERS = {
+    "momo": DemoUser(
+        username="momo",
+        password="momo123",
+        display_name="momo研究员",
+        membership="专业版",
+        risk_level="平衡型",
+        intro="偏好趋势和波段策略组合，关注移动端量化执行体验。",
+        phone_mask="138****6677",
+    ),
+    "guest": DemoUser(
+        username="guest",
+        password="guest123",
+        display_name="访客体验官",
+        membership="体验版",
+        risk_level="稳健型",
+        intro="主要体验策略广场、行情榜单和移动端回测能力。",
+        phone_mask="139****8899",
+    ),
+}
+
+
+MARKET_BOARD = {
+    "indices": [
+        {"name": "上证指数", "value": "3,268.14", "change_pct": "+0.62%"},
+        {"name": "深证成指", "value": "10,412.55", "change_pct": "+1.08%"},
+        {"name": "创业板指", "value": "2,145.72", "change_pct": "+1.46%"},
+    ],
+    "gainers": [
+        {"symbol": "300750", "name": "宁德时代", "price": "212.42", "change_pct": "+7.84%"},
+        {"symbol": "002594", "name": "比亚迪", "price": "248.10", "change_pct": "+6.13%"},
+        {"symbol": "601127", "name": "赛力斯", "price": "87.36", "change_pct": "+5.72%"},
+        {"symbol": "603019", "name": "中科曙光", "price": "56.92", "change_pct": "+5.48%"},
+    ],
+    "losers": [
+        {"symbol": "600276", "name": "恒瑞医药", "price": "44.23", "change_pct": "-3.26%"},
+        {"symbol": "000333", "name": "美的集团", "price": "66.51", "change_pct": "-2.94%"},
+        {"symbol": "600036", "name": "招商银行", "price": "32.80", "change_pct": "-2.41%"},
+        {"symbol": "601318", "name": "中国平安", "price": "41.29", "change_pct": "-2.18%"},
+    ],
+}
+
+
+def get_demo_user(username: str | None) -> DemoUser:
+    if username and username in DEMO_USERS:
+        return DEMO_USERS[username]
+    return DEMO_USERS["guest"]
+
+
+def get_dashboard_payload(username: str | None = None) -> dict:
+    user = get_demo_user(username)
     return {
         "profile": {
-            "nickname": "量化指挥官",
-            "membership": "专业版",
-            "risk_level": "平衡型",
-            "intro": "专注股票量化研究，偏好趋势与波段策略组合。",
+            "nickname": user.display_name,
+            "membership": user.membership,
+            "risk_level": user.risk_level,
+            "intro": user.intro,
+            "phone_mask": user.phone_mask,
         },
         "summary_cards": [
             {"label": "总资产", "value": "1,286,530", "delta": "+2.14%"},
             {"label": "今日盈亏", "value": "+12,460", "delta": "+0.98%"},
-            {"label": "策略数", "value": str(len(STRATEGY_PRESETS)), "delta": "3 类引擎"},
+            {"label": "策略数量", "value": str(len(STRATEGY_PRESETS)), "delta": "6 位交易师"},
             {"label": "已连券商", "value": "1/3", "delta": "可继续扩展"},
         ],
         "brokers": [asdict(item) for item in BROKER_CONNECTORS],
@@ -151,11 +248,25 @@ def get_dashboard_payload() -> dict:
             "超跌修复观察池",
             "量价异动监控池",
         ],
+        "market_board": MARKET_BOARD,
     }
 
 
 def get_strategy_payload() -> list[dict]:
-    return [asdict(item) for item in STRATEGY_PRESETS]
+    return [
+        {
+            "code": item.code,
+            "title": item.title,
+            "strategist": item.strategist,
+            "engine": item.engine,
+            "description": item.description,
+            "fit_for": item.fit_for,
+            "risk_level": item.risk_level,
+            "tags": item.tags,
+            "hero": item.hero,
+        }
+        for item in STRATEGY_PRESETS
+    ]
 
 
 def get_strategy_preset(code: str) -> StrategyPreset:
@@ -165,7 +276,44 @@ def get_strategy_preset(code: str) -> StrategyPreset:
     raise ValueError(f"未找到策略: {code}")
 
 
-def serialize_backtest_result(result: BacktestResult) -> dict:
+def get_strategy_detail(code: str) -> dict:
+    item = get_strategy_preset(code)
+    return asdict(item)
+
+
+def authenticate_user(username: str, password: str) -> dict | None:
+    user = DEMO_USERS.get(username)
+    if not user or user.password != password:
+        return None
+    return {
+        "username": user.username,
+        "display_name": user.display_name,
+        "membership": user.membership,
+        "risk_level": user.risk_level,
+        "phone_mask": user.phone_mask,
+    }
+
+
+def get_auth_payload(username: str | None) -> dict:
+    user = get_demo_user(username)
+    is_authenticated = bool(username and username in DEMO_USERS and username != "guest")
+    return {
+        "is_authenticated": is_authenticated,
+        "user": {
+            "username": user.username,
+            "display_name": user.display_name,
+            "membership": user.membership,
+            "risk_level": user.risk_level,
+            "phone_mask": user.phone_mask,
+        },
+        "demo_accounts": [
+            {"username": item.username, "password": item.password}
+            for item in DEMO_USERS.values()
+        ],
+    }
+
+
+def serialize_backtest_result(result: BacktestResult, bars: list) -> dict:
     return {
         "strategy_name": result.strategy_name,
         "initial_capital": round(result.initial_capital, 2),
@@ -205,6 +353,16 @@ def serialize_backtest_result(result: BacktestResult) -> dict:
             {"date": item.date, "close": round(item.close, 2), "equity": round(item.equity, 2)}
             for item in result.equity_curve
         ],
+        "candles": [
+            {
+                "date": bar.date.date().isoformat(),
+                "open": round(bar.open or bar.close, 2),
+                "high": round(bar.high or bar.close, 2),
+                "low": round(bar.low or bar.close, 2),
+                "close": round(bar.close, 2),
+            }
+            for bar in bars[-90:]
+        ],
     }
 
 
@@ -241,7 +399,7 @@ def run_preset_backtest(
     params.update(preset.params)
     result = run_backtest(**params)
 
-    payload = serialize_backtest_result(result)
+    payload = serialize_backtest_result(result, bars)
     payload["strategy_title"] = preset.title
     payload["strategist"] = preset.strategist
     payload["symbol"] = symbol

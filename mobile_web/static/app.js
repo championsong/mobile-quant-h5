@@ -1,45 +1,66 @@
 const state = {
+  auth: null,
+  dashboard: null,
   strategies: [],
   activeStrategy: "beichen_ma_fast",
+  strategyDetail: null,
+  boardMode: "gainers",
+  lastCandles: [],
   lastCurve: [],
-  dashboard: null,
 };
 
 async function fetchJson(url, options = {}) {
   const response = await fetch(url, {
     headers: { "Content-Type": "application/json" },
+    credentials: "same-origin",
     ...options,
   });
+  const text = await response.text();
+  const payload = text ? JSON.parse(text) : {};
   if (!response.ok) {
-    const text = await response.text();
-    throw new Error(text || "请求失败");
+    throw new Error(payload.message || "请求失败");
   }
-  return response.json();
+  return payload;
 }
 
-function renderProfile(data) {
-  state.dashboard = data;
-  const profileBlock = document.getElementById("profile-block");
-  const summaryCards = document.getElementById("summary-cards");
-  const positions = document.getElementById("positions");
-  const watchlist = document.getElementById("watchlist");
-  const brokerList = document.getElementById("broker-list");
+function switchScreen(screenId) {
+  document.querySelectorAll(".screen").forEach((screen) => {
+    screen.classList.toggle("active", screen.id === screenId);
+  });
+  document.querySelectorAll(".tabbar-item").forEach((button) => {
+    button.classList.toggle("active", button.dataset.screen === screenId);
+  });
+}
 
-  const totalAsset = data.summary_cards.find(item => item.label === "总资产");
-  const dailyPnl = data.summary_cards.find(item => item.label === "今日盈亏");
+function renderAuth() {
+  const entry = document.getElementById("auth-entry");
+  if (!state.auth) {
+    entry.textContent = "登录";
+    return;
+  }
+  entry.textContent = state.auth.is_authenticated ? "退出" : "登录";
+}
+
+function renderDashboard(data) {
+  state.dashboard = data;
+  const totalAsset = data.summary_cards.find((item) => item.label === "总资产");
+  const dailyPnl = data.summary_cards.find((item) => item.label === "今日盈亏");
+
   document.getElementById("hero-total-asset").textContent = totalAsset ? totalAsset.value : "--";
   document.getElementById("hero-delta").textContent = dailyPnl ? dailyPnl.delta : "--";
   document.getElementById("risk-level-text").textContent = data.profile.risk_level;
-  document.getElementById("broker-count-text").textContent = `${data.brokers.filter(item => item.status === "ready").length}/${data.brokers.length}`;
+  document.getElementById("broker-count-text").textContent =
+    `${data.brokers.filter((item) => item.status === "ready").length}/${data.brokers.length}`;
   document.getElementById("strategy-count-text").textContent = `${state.strategies.length || 0} 套`;
+  document.getElementById("phone-mask-text").textContent = data.profile.phone_mask;
 
-  profileBlock.innerHTML = `
-    <h4 class="profile-title">${data.profile.nickname}</h4>
+  document.getElementById("account-profile").innerHTML = `
+    <h3 class="profile-title">${data.profile.nickname}</h3>
     <p class="profile-sub">${data.profile.membership} · ${data.profile.risk_level}</p>
     <p class="profile-sub">${data.profile.intro}</p>
   `;
 
-  summaryCards.innerHTML = data.summary_cards.map(item => `
+  document.getElementById("summary-cards").innerHTML = data.summary_cards.map((item) => `
     <article class="metric-card">
       <p>${item.label}</p>
       <div class="value">${item.value}</div>
@@ -47,7 +68,7 @@ function renderProfile(data) {
     </article>
   `).join("");
 
-  positions.innerHTML = data.positions.map(item => `
+  document.getElementById("positions").innerHTML = data.positions.map((item) => `
     <article class="position-card">
       <strong>${item.symbol} ${item.name}</strong>
       <p class="helper-text">仓位 ${item.weight}</p>
@@ -55,70 +76,130 @@ function renderProfile(data) {
     </article>
   `).join("");
 
-  watchlist.innerHTML = data.watchlist.map(item => `<li>${item}</li>`).join("");
+  document.getElementById("watchlist").innerHTML = data.watchlist.map((item) => `<li>${item}</li>`).join("");
 
-  brokerList.innerHTML = data.brokers.map(item => `
+  document.getElementById("broker-list").innerHTML = data.brokers.map((item) => `
     <article class="broker-card">
-      <div class="strategy-meta">
+      <div class="meta-row">
         <strong>${item.name}</strong>
         <span class="broker-status ${item.status === "ready" ? "broker-status--ready" : ""}">
           ${item.status === "ready" ? "已就绪" : "待配置"}
         </span>
       </div>
       <p class="helper-text">${item.description}</p>
-      <div class="features">${item.features.map(feature => `<span>${feature}</span>`).join("")}</div>
+      <div class="chip-row">${item.features.map((feature) => `<span>${feature}</span>`).join("")}</div>
+    </article>
+  `).join("");
+
+  renderMarketBoard();
+}
+
+function renderMarketBoard() {
+  if (!state.dashboard) {
+    return;
+  }
+  const board = state.dashboard.market_board;
+  document.getElementById("index-strip").innerHTML = board.indices.map((item) => `
+    <article class="index-card">
+      <strong>${item.name}</strong>
+      <p>${item.value}</p>
+      <span class="${item.change_pct.startsWith("-") ? "negative" : "positive"}">${item.change_pct}</span>
+    </article>
+  `).join("");
+
+  const items = board[state.boardMode];
+  document.getElementById("leaderboard").innerHTML = items.map((item, index) => `
+    <article class="leader-row">
+      <div class="rank">${index + 1}</div>
+      <div class="leader-main">
+        <strong>${item.name}</strong>
+        <p>${item.symbol}</p>
+      </div>
+      <div class="leader-side">
+        <strong>${item.price}</strong>
+        <p class="${item.change_pct.startsWith("-") ? "negative" : "positive"}">${item.change_pct}</p>
+      </div>
     </article>
   `).join("");
 }
 
 function renderSelectedStrategy() {
-  const strategy = state.strategies.find(item => item.code === state.activeStrategy);
+  const strategy = state.strategies.find((item) => item.code === state.activeStrategy);
   const target = document.getElementById("selected-strategy");
   if (!strategy) {
     target.innerHTML = "<p class='helper-text'>请选择一个策略。</p>";
     return;
   }
-
   document.getElementById("strategy-code").value = strategy.code;
   target.innerHTML = `
-    <div class="strategy-meta">
+    <div class="meta-row">
       <div>
         <strong>${strategy.title}</strong>
-        <div class="strategist">${strategy.strategist}</div>
+        <div class="helper-text">${strategy.strategist}</div>
       </div>
-      <span class="risk">${strategy.risk_level}风险</span>
+      <span class="risk-badge">${strategy.risk_level}风险</span>
     </div>
-    <p class="helper-text">${strategy.description}</p>
-    <p class="helper-text">适用场景：${strategy.fit_for}</p>
-    <div class="tag-row">${strategy.tags.map(tag => `<span>${tag}</span>`).join("")}</div>
+    <p class="helper-text">${strategy.hero || strategy.description}</p>
+    <div class="chip-row">${strategy.tags.map((tag) => `<span>${tag}</span>`).join("")}</div>
+  `;
+}
+
+async function loadStrategyDetail(code) {
+  const detail = await fetchJson(`/api/strategies/${code}`);
+  state.strategyDetail = detail;
+  document.getElementById("detail-title").textContent = detail.title;
+  document.getElementById("detail-risk").textContent = `${detail.risk_level}风险`;
+  document.getElementById("strategy-detail").innerHTML = `
+    <article class="detail-hero">
+      <strong>${detail.strategist}</strong>
+      <p>${detail.hero}</p>
+    </article>
+    <div class="detail-group">
+      <h4>策略介绍</h4>
+      <p>${detail.description}</p>
+      <p class="helper-text">适用场景：${detail.fit_for}</p>
+      <p class="helper-text">交易哲学：${detail.philosophy}</p>
+    </div>
+    <div class="detail-group">
+      <h4>策略优势</h4>
+      <ul>${detail.strengths.map((item) => `<li>${item}</li>`).join("")}</ul>
+    </div>
+    <div class="detail-group">
+      <h4>风险提示</h4>
+      <ul>${detail.warnings.map((item) => `<li>${item}</li>`).join("")}</ul>
+    </div>
+    <div class="detail-group">
+      <h4>执行步骤</h4>
+      <ol>${detail.steps.map((item) => `<li>${item}</li>`).join("")}</ol>
+    </div>
+    <div class="chip-row">${detail.tags.map((tag) => `<span>${tag}</span>`).join("")}</div>
   `;
 }
 
 function renderStrategies(items) {
   state.strategies = items;
   document.getElementById("strategy-count-text").textContent = `${items.length} 套`;
-
-  const container = document.getElementById("strategy-list");
-  container.innerHTML = items.map(item => `
+  document.getElementById("strategy-list").innerHTML = items.map((item) => `
     <article class="strategy-card ${item.code === state.activeStrategy ? "active" : ""}" data-code="${item.code}">
-      <div class="strategy-meta">
+      <div class="meta-row">
         <div>
           <strong>${item.title}</strong>
-          <div class="strategist">${item.strategist}</div>
+          <div class="helper-text">${item.strategist}</div>
         </div>
-        <span class="risk">${item.risk_level}风险</span>
+        <span class="risk-badge">${item.risk_level}风险</span>
       </div>
       <p class="helper-text">${item.description}</p>
       <p class="helper-text">适用场景：${item.fit_for}</p>
-      <div class="tag-row">${item.tags.map(tag => `<span>${tag}</span>`).join("")}</div>
+      <div class="chip-row">${item.tags.map((tag) => `<span>${tag}</span>`).join("")}</div>
     </article>
   `).join("");
 
-  container.querySelectorAll(".strategy-card").forEach(card => {
-    card.addEventListener("click", () => {
+  document.querySelectorAll(".strategy-card").forEach((card) => {
+    card.addEventListener("click", async () => {
       state.activeStrategy = card.dataset.code;
       renderStrategies(state.strategies);
       renderSelectedStrategy();
+      await loadStrategyDetail(state.activeStrategy);
     });
   });
 
@@ -126,9 +207,7 @@ function renderStrategies(items) {
 }
 
 function renderBacktestResult(result) {
-  const summary = document.getElementById("result-summary");
-  const signalList = document.getElementById("signal-list");
-  summary.innerHTML = `
+  document.getElementById("result-summary").innerHTML = `
     <strong>${result.strategy_title}</strong>
     <p>${result.strategist} · 股票 ${result.symbol}</p>
     <p>总收益率 ${result.total_return_pct}% · 年化 ${result.annualized_return_pct}% · 最大回撤 ${result.max_drawdown_pct}%</p>
@@ -136,7 +215,7 @@ function renderBacktestResult(result) {
     <p>结束资金 ${result.ending_capital} · 交易次数 ${result.trade_count}</p>
   `;
 
-  signalList.innerHTML = result.signals.map(item => `
+  document.getElementById("signal-list").innerHTML = result.signals.map((item) => `
     <article class="signal-card">
       <strong>${item.date} ${item.signal}</strong>
       <p class="helper-text">价格 ${item.price}</p>
@@ -145,37 +224,35 @@ function renderBacktestResult(result) {
   `).join("");
 
   state.lastCurve = result.equity_curve || [];
-  drawEquityChart(state.lastCurve);
+  state.lastCandles = result.candles || [];
+  drawCandlesChart();
+  drawEquityChart();
 }
 
-function drawEquityChart(points) {
-  const canvas = document.getElementById("equity-chart");
+function drawLineChart(canvas, values, labels, color) {
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(rect.width, 280);
-  const height = 220;
+  const height = 240;
   const scale = window.devicePixelRatio || 1;
   canvas.width = width * scale;
   canvas.height = height * scale;
-
   const ctx = canvas.getContext("2d");
   ctx.setTransform(scale, 0, 0, scale, 0, 0);
   ctx.clearRect(0, 0, width, height);
-
-  if (!points || !points.length) {
+  if (!values.length) {
     return;
   }
 
-  const values = points.map(item => item.equity);
   const min = Math.min(...values);
   const max = Math.max(...values);
   const padX = 18;
-  const padY = 20;
+  const padY = 18;
   const usableWidth = width - padX * 2;
   const usableHeight = height - padY * 2;
 
-  ctx.strokeStyle = "#e9e0d3";
+  ctx.strokeStyle = "#ece2d5";
   ctx.lineWidth = 1;
-  [0, 0.5, 1].forEach(ratio => {
+  [0, 0.5, 1].forEach((ratio) => {
     const y = padY + usableHeight * ratio;
     ctx.beginPath();
     ctx.moveTo(padX, y);
@@ -183,12 +260,12 @@ function drawEquityChart(points) {
     ctx.stroke();
   });
 
-  ctx.strokeStyle = "#17865f";
+  ctx.strokeStyle = color;
   ctx.lineWidth = 2.6;
   ctx.beginPath();
-  points.forEach((point, index) => {
-    const x = padX + (usableWidth * index) / Math.max(points.length - 1, 1);
-    const normalized = max === min ? 0.5 : (point.equity - min) / (max - min);
+  values.forEach((value, index) => {
+    const x = padX + (usableWidth * index) / Math.max(values.length - 1, 1);
+    const normalized = max === min ? 0.5 : (value - min) / (max - min);
     const y = height - padY - normalized * usableHeight;
     if (index === 0) {
       ctx.moveTo(x, y);
@@ -198,79 +275,186 @@ function drawEquityChart(points) {
   });
   ctx.stroke();
 
-  ctx.fillStyle = "#6e7784";
+  ctx.fillStyle = "#6f7884";
   ctx.font = "12px Microsoft YaHei UI";
-  ctx.fillText(points[0].date, padX, height - 6);
-  const last = points[points.length - 1].date;
+  ctx.fillText(labels[0], padX, height - 6);
+  const last = labels[labels.length - 1];
   const textWidth = ctx.measureText(last).width;
   ctx.fillText(last, width - padX - textWidth, height - 6);
 }
 
-function bindTabbar() {
-  const links = [...document.querySelectorAll(".tabbar-item")];
-  const sections = links.map(link => document.querySelector(link.getAttribute("href"))).filter(Boolean);
-
-  const observer = new IntersectionObserver((entries) => {
-    entries.forEach(entry => {
-      if (!entry.isIntersecting) {
-        return;
-      }
-      const activeId = `#${entry.target.id}`;
-      links.forEach(link => link.classList.toggle("active", link.getAttribute("href") === activeId));
-    });
-  }, { rootMargin: "-35% 0px -45% 0px", threshold: 0.05 });
-
-  sections.forEach(section => observer.observe(section));
+function drawEquityChart() {
+  drawLineChart(
+    document.getElementById("equity-chart"),
+    state.lastCurve.map((item) => item.equity),
+    state.lastCurve.map((item) => item.date),
+    "#178560",
+  );
 }
 
-function bindMarketTabs() {
-  const tabs = [...document.querySelectorAll(".market-tab")];
-  tabs.forEach(tab => {
-    tab.addEventListener("click", () => {
-      tabs.forEach(item => item.classList.toggle("active", item === tab));
-      document.querySelectorAll(".market-panel").forEach(panel => panel.classList.remove("active"));
-      document.getElementById(`${tab.dataset.marketTab}-panel`).classList.add("active");
+function drawCandlesChart() {
+  const canvas = document.getElementById("candles-chart");
+  const candles = state.lastCandles;
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(rect.width, 280);
+  const height = 240;
+  const scale = window.devicePixelRatio || 1;
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  if (!candles.length) {
+    return;
+  }
+
+  const highs = candles.map((item) => item.high);
+  const lows = candles.map((item) => item.low);
+  const min = Math.min(...lows);
+  const max = Math.max(...highs);
+  const padX = 18;
+  const padY = 18;
+  const usableWidth = width - padX * 2;
+  const usableHeight = height - padY * 2;
+  const step = usableWidth / Math.max(candles.length, 1);
+  const bodyWidth = Math.max(3, step * 0.55);
+
+  ctx.strokeStyle = "#ece2d5";
+  ctx.lineWidth = 1;
+  [0, 0.5, 1].forEach((ratio) => {
+    const y = padY + usableHeight * ratio;
+    ctx.beginPath();
+    ctx.moveTo(padX, y);
+    ctx.lineTo(width - padX, y);
+    ctx.stroke();
+  });
+
+  candles.forEach((item, index) => {
+    const ratio = Math.max(max - min, 1e-9);
+    const x = padX + step * index + step / 2;
+    const highY = padY + (1 - (item.high - min) / ratio) * usableHeight;
+    const lowY = padY + (1 - (item.low - min) / ratio) * usableHeight;
+    const openY = padY + (1 - (item.open - min) / ratio) * usableHeight;
+    const closeY = padY + (1 - (item.close - min) / ratio) * usableHeight;
+    const color = item.close >= item.open ? "#dd5840" : "#178560";
+    ctx.strokeStyle = color;
+    ctx.beginPath();
+    ctx.moveTo(x, highY);
+    ctx.lineTo(x, lowY);
+    ctx.stroke();
+    ctx.fillStyle = color;
+    const top = Math.min(openY, closeY);
+    const bodyHeight = Math.max(Math.abs(closeY - openY), 2);
+    ctx.fillRect(x - bodyWidth / 2, top, bodyWidth, bodyHeight);
+  });
+
+  ctx.fillStyle = "#6f7884";
+  ctx.font = "12px Microsoft YaHei UI";
+  ctx.fillText(candles[0].date, padX, height - 6);
+  const last = candles[candles.length - 1].date;
+  const textWidth = ctx.measureText(last).width;
+  ctx.fillText(last, width - padX - textWidth, height - 6);
+}
+
+function bindUi() {
+  document.querySelectorAll(".tabbar-item").forEach((button) => {
+    button.addEventListener("click", () => switchScreen(button.dataset.screen));
+  });
+
+  document.querySelectorAll("[data-jump]").forEach((button) => {
+    button.addEventListener("click", () => switchScreen(button.dataset.jump));
+  });
+
+  document.querySelectorAll(".board-tab").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.boardMode = button.dataset.board;
+      document.querySelectorAll(".board-tab").forEach((tab) => tab.classList.toggle("active", tab === button));
+      renderMarketBoard();
     });
+  });
+
+  document.querySelectorAll(".chart-tab").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".chart-tab").forEach((tab) => tab.classList.toggle("active", tab === button));
+      document.getElementById("candles-chart").classList.toggle("hidden-chart", button.dataset.chart !== "candles");
+      document.getElementById("equity-chart").classList.toggle("hidden-chart", button.dataset.chart !== "equity");
+    });
+  });
+
+  document.querySelectorAll(".market-tab").forEach((button) => {
+    button.addEventListener("click", () => {
+      document.querySelectorAll(".market-tab").forEach((tab) => tab.classList.toggle("active", tab === button));
+      document.querySelectorAll(".market-panel").forEach((panel) => panel.classList.remove("active"));
+      document.getElementById(`${button.dataset.marketPanel}-panel`).classList.add("active");
+    });
+  });
+
+  const dialog = document.getElementById("auth-dialog");
+  document.getElementById("auth-entry").addEventListener("click", async () => {
+    if (state.auth?.is_authenticated) {
+      await fetchJson("/api/auth/logout", { method: "POST" });
+      await bootstrap();
+      return;
+    }
+    dialog.showModal();
+  });
+
+  document.getElementById("auth-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(event.target).entries());
+    try {
+      await fetchJson("/api/auth/login", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      dialog.close();
+      await bootstrap();
+    } catch (error) {
+      alert(error.message);
+    }
+  });
+
+  document.getElementById("backtest-form").addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const payload = Object.fromEntries(new FormData(event.target).entries());
+    payload.strategy_code = state.activeStrategy;
+    document.getElementById("result-summary").innerHTML = "<p>正在下载行情并运行回测，请稍候...</p>";
+    try {
+      const result = await fetchJson("/api/backtest", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+      renderBacktestResult(result);
+    } catch (error) {
+      document.getElementById("result-summary").innerHTML = `<p>${error.message}</p>`;
+    }
+  });
+
+  window.addEventListener("resize", () => {
+    if (state.lastCandles.length) {
+      drawCandlesChart();
+    }
+    if (state.lastCurve.length) {
+      drawEquityChart();
+    }
   });
 }
 
-async function loadInitialData() {
-  const [dashboard, strategyResponse] = await Promise.all([
+async function bootstrap() {
+  const [auth, dashboard, strategies] = await Promise.all([
+    fetchJson("/api/auth/status"),
     fetchJson("/api/dashboard"),
     fetchJson("/api/strategies"),
   ]);
-  renderStrategies(strategyResponse.items);
-  renderProfile(dashboard);
+  state.auth = auth;
+  renderAuth();
+  renderStrategies(strategies.items);
+  renderDashboard(dashboard);
+  await loadStrategyDetail(state.activeStrategy);
 }
 
-document.getElementById("backtest-form").addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const formData = new FormData(event.target);
-  const payload = Object.fromEntries(formData.entries());
-  payload.strategy_code = state.activeStrategy;
-
-  const summary = document.getElementById("result-summary");
-  summary.innerHTML = "<p>正在下载行情并运行回测，请稍候...</p>";
-
-  try {
-    const result = await fetchJson("/api/backtest", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-    renderBacktestResult(result);
-  } catch (error) {
-    summary.innerHTML = `<p>${error.message}</p>`;
-  }
-});
-
-window.addEventListener("resize", () => {
-  if (state.lastCurve.length) {
-    drawEquityChart(state.lastCurve);
-  }
-});
-
-bindTabbar();
-bindMarketTabs();
-loadInitialData().catch((error) => {
+bindUi();
+bootstrap().catch((error) => {
   document.getElementById("result-summary").innerHTML = `<p>${error.message}</p>`;
 });
