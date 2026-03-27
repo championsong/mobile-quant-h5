@@ -7,7 +7,7 @@ from mobile_web.database import get_user_by_username, list_favorites, list_watch
 from quant.backtest import BacktestResult, run_backtest
 from quant.data_loader import load_price_data
 from quant.downloader import default_end_date, default_start_date, download_a_share_history
-from quant.strategy import moving_average
+from quant.strategy import compute_rsi, moving_average
 
 
 @dataclass(slots=True)
@@ -183,6 +183,53 @@ MARKET_BOARD = {
 }
 
 
+def exponential_moving_average(values: list[float], window: int) -> list[float | None]:
+    if window <= 0:
+        raise ValueError("EMA 周期必须大于 0")
+    result: list[float | None] = []
+    multiplier = 2 / (window + 1)
+    ema = 0.0
+    for index, value in enumerate(values):
+        if index == 0:
+            ema = value
+        else:
+            ema = (value - ema) * multiplier + ema
+        result.append(ema if index + 1 >= window else None)
+    return result
+
+
+def compute_macd(values: list[float]) -> dict:
+    ema12 = exponential_moving_average(values, 12)
+    ema26 = exponential_moving_average(values, 26)
+    dif: list[float | None] = []
+    for a, b in zip(ema12, ema26):
+        dif.append((a - b) if a is not None and b is not None else None)
+
+    signal_input = [item if item is not None else 0.0 for item in dif]
+    dea = exponential_moving_average(signal_input, 9)
+    histogram: list[float | None] = []
+    for d, e in zip(dif, dea):
+        histogram.append((d - e) * 2 if d is not None and e is not None else None)
+    return {"dif": dif, "dea": dea, "histogram": histogram}
+
+
+def compute_bollinger(values: list[float], window: int = 20, std_factor: float = 2.0) -> dict:
+    middle = moving_average(values, window)
+    upper: list[float | None] = []
+    lower: list[float | None] = []
+    for index, mean in enumerate(middle):
+        if mean is None:
+            upper.append(None)
+            lower.append(None)
+            continue
+        sample = values[index - window + 1 : index + 1]
+        variance = sum((item - mean) ** 2 for item in sample) / len(sample)
+        std = variance**0.5
+        upper.append(mean + std_factor * std)
+        lower.append(mean - std_factor * std)
+    return {"middle": middle, "upper": upper, "lower": lower}
+
+
 def get_dashboard_payload(username: str | None = None) -> dict:
     resolved_username = username or "guest"
     user = get_user_by_username(resolved_username) or get_user_by_username("guest")
@@ -337,6 +384,9 @@ def run_preset_backtest(
     long_window = int(params.get("long_window", 20))
     short_ma = moving_average(closes, short_window)
     long_ma = moving_average(closes, long_window)
+    rsi = compute_rsi(closes, 14)
+    macd = compute_macd(closes)
+    boll = compute_bollinger(closes, 20, 2.0)
     payload["strategy_title"] = preset.title
     payload["strategist"] = preset.strategist
     payload["symbol"] = symbol
@@ -346,5 +396,14 @@ def run_preset_backtest(
         "long_label": f"MA{long_window}",
         "short": [round(item, 2) if item is not None else None for item in short_ma],
         "long": [round(item, 2) if item is not None else None for item in long_ma],
+    }
+    payload["indicators"] = {
+        "rsi14": [round(item, 2) if item is not None else None for item in rsi],
+        "macd_dif": [round(item, 2) if item is not None else None for item in macd["dif"]],
+        "macd_dea": [round(item, 2) if item is not None else None for item in macd["dea"]],
+        "macd_hist": [round(item, 2) if item is not None else None for item in macd["histogram"]],
+        "boll_middle": [round(item, 2) if item is not None else None for item in boll["middle"]],
+        "boll_upper": [round(item, 2) if item is not None else None for item in boll["upper"]],
+        "boll_lower": [round(item, 2) if item is not None else None for item in boll["lower"]],
     }
     return payload

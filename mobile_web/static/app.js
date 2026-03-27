@@ -7,11 +7,13 @@ const state = {
   boardMode: "gainers",
   candlePeriod: 20,
   candleOffset: 0,
+  indicatorMode: "macd",
   authMode: "login",
   lastCandles: [],
   lastCurve: [],
   lastSignals: [],
   movingAverages: null,
+  indicators: null,
   favorites: [],
   watchlist: [],
   crosshairIndex: null,
@@ -299,11 +301,13 @@ function renderBacktestResult(result) {
   state.lastCandles = result.candles || [];
   state.lastSignals = result.signals || [];
   state.movingAverages = result.moving_averages || null;
+  state.indicators = result.indicators || null;
   state.candleOffset = 0;
   state.crosshairIndex = null;
   renderChartLegend();
   drawCandlesChart();
   drawEquityChart();
+  drawIndicatorChart();
 }
 
 function renderChartLegend() {
@@ -318,6 +322,7 @@ function renderChartLegend() {
     <span>绿柱: 阴线</span>
     <span class="legend-short">${moving.short_label}</span>
     <span class="legend-long">${moving.long_label}</span>
+    <span class="legend-boll">BOLL</span>
     <span>▲ 买点</span>
     <span>▼ 卖点</span>
   `;
@@ -459,6 +464,11 @@ function drawCandlesChart() {
     drawOverlayLine(ctx, moving.short.slice(viewport.start, viewport.end), candles.length, min, max, padX, padY, usableWidth, priceHeight, "#f59e0b");
     drawOverlayLine(ctx, moving.long.slice(viewport.start, viewport.end), candles.length, min, max, padX, padY, usableWidth, priceHeight, "#2563eb");
   }
+  if (state.indicators) {
+    drawOverlayLine(ctx, state.indicators.boll_middle.slice(viewport.start, viewport.end), candles.length, min, max, padX, padY, usableWidth, priceHeight, "#7c3aed");
+    drawOverlayLine(ctx, state.indicators.boll_upper.slice(viewport.start, viewport.end), candles.length, min, max, padX, padY, usableWidth, priceHeight, "#a855f7");
+    drawOverlayLine(ctx, state.indicators.boll_lower.slice(viewport.start, viewport.end), candles.length, min, max, padX, padY, usableWidth, priceHeight, "#a855f7");
+  }
 
   signals.forEach((signal) => {
     const index = candles.findIndex((item) => item.date === signal.date);
@@ -535,6 +545,77 @@ function getCandleViewport() {
   return { start, end, candles: state.lastCandles.slice(start, end) };
 }
 
+function drawIndicatorChart() {
+  const canvas = document.getElementById("indicator-chart");
+  const viewport = getCandleViewport();
+  const labels = viewport.candles.map((item) => item.date);
+  if (!state.indicators || !labels.length) {
+    drawLineChart(canvas, [], [], "#7c3aed");
+    return;
+  }
+
+  if (state.indicatorMode === "rsi") {
+    drawLineChart(
+      canvas,
+      state.indicators.rsi14.slice(viewport.start, viewport.end).map((item) => item ?? 0),
+      labels,
+      "#7c3aed",
+    );
+    return;
+  }
+
+  if (state.indicatorMode === "boll") {
+    drawLineChart(
+      canvas,
+      state.indicators.boll_middle.slice(viewport.start, viewport.end).map((item) => item ?? 0),
+      labels,
+      "#7c3aed",
+    );
+    return;
+  }
+
+  const rect = canvas.getBoundingClientRect();
+  const width = Math.max(rect.width, 280);
+  const height = 160;
+  const scale = window.devicePixelRatio || 1;
+  canvas.width = width * scale;
+  canvas.height = height * scale;
+  const ctx = canvas.getContext("2d");
+  ctx.setTransform(scale, 0, 0, scale, 0, 0);
+  ctx.clearRect(0, 0, width, height);
+
+  const hist = state.indicators.macd_hist.slice(viewport.start, viewport.end);
+  const dif = state.indicators.macd_dif.slice(viewport.start, viewport.end);
+  const dea = state.indicators.macd_dea.slice(viewport.start, viewport.end);
+  const numeric = [...hist, ...dif, ...dea].filter((item) => item !== null && item !== undefined);
+  if (!numeric.length) {
+    return;
+  }
+
+  const min = Math.min(...numeric);
+  const max = Math.max(...numeric);
+  const padX = 18;
+  const padY = 18;
+  const usableWidth = width - padX * 2;
+  const usableHeight = height - padY * 2;
+  const step = usableWidth / Math.max(hist.length, 1);
+
+  hist.forEach((value, index) => {
+    const x = padX + step * index + step / 2;
+    const zeroY = padY + (1 - (0 - min) / Math.max(max - min, 1e-9)) * usableHeight;
+    const y = padY + (1 - ((value ?? 0) - min) / Math.max(max - min, 1e-9)) * usableHeight;
+    ctx.strokeStyle = (value ?? 0) >= 0 ? "#dd5840" : "#178560";
+    ctx.lineWidth = Math.max(step * 0.45, 3);
+    ctx.beginPath();
+    ctx.moveTo(x, zeroY);
+    ctx.lineTo(x, y);
+    ctx.stroke();
+  });
+
+  drawOverlayLine(ctx, dif, hist.length, min, max, padX, padY, usableWidth, usableHeight, "#2563eb");
+  drawOverlayLine(ctx, dea, hist.length, min, max, padX, padY, usableWidth, usableHeight, "#f59e0b");
+}
+
 function bindUi() {
   document.querySelectorAll(".tabbar-item").forEach((button) => {
     button.addEventListener("click", () => switchScreen(button.dataset.screen));
@@ -565,6 +646,12 @@ function bindUi() {
         state.candleOffset = 0;
         document.querySelectorAll("[data-period]").forEach((tab) => tab.classList.toggle("active", tab === button));
         drawCandlesChart();
+        drawIndicatorChart();
+      }
+      if (button.dataset.indicator) {
+        state.indicatorMode = button.dataset.indicator;
+        document.querySelectorAll("[data-indicator]").forEach((tab) => tab.classList.toggle("active", tab === button));
+        drawIndicatorChart();
       }
     });
   });
@@ -572,16 +659,19 @@ function bindUi() {
   document.getElementById("zoom-in").addEventListener("click", () => {
     state.candlePeriod = Math.max(10, state.candlePeriod - 10);
     drawCandlesChart();
+    drawIndicatorChart();
   });
   document.getElementById("zoom-out").addEventListener("click", () => {
     state.candlePeriod = Math.min(90, state.candlePeriod + 10);
     drawCandlesChart();
+    drawIndicatorChart();
   });
   document.getElementById("reset-view").addEventListener("click", () => {
     state.candlePeriod = 20;
     state.candleOffset = 0;
     state.crosshairIndex = null;
     drawCandlesChart();
+    drawIndicatorChart();
   });
 
   document.querySelectorAll(".market-tab").forEach((button) => {
@@ -661,10 +751,11 @@ function bindUi() {
     if (state.isDraggingChart) {
       const deltaX = event.clientX - state.dragStartX;
       const stepShift = Math.round(deltaX / 10);
-      state.candleOffset = Math.max(0, state.dragOffsetSnapshot - stepShift);
-      drawCandlesChart();
-      return;
-    }
+        state.candleOffset = Math.max(0, state.dragOffsetSnapshot - stepShift);
+        drawCandlesChart();
+        drawIndicatorChart();
+        return;
+      }
     updateCrosshair(event.clientX);
   });
   candlesCanvas.addEventListener("mouseleave", () => {
@@ -683,11 +774,13 @@ function bindUi() {
     event.preventDefault();
     state.candlePeriod = event.deltaY < 0 ? Math.max(10, state.candlePeriod - 5) : Math.min(90, state.candlePeriod + 5);
     drawCandlesChart();
+    drawIndicatorChart();
   }, { passive: false });
 
   window.addEventListener("resize", () => {
     if (state.lastCandles.length) {
       drawCandlesChart();
+      drawIndicatorChart();
     }
     if (state.lastCurve.length) {
       drawEquityChart();

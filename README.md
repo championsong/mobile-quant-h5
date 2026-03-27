@@ -64,6 +64,13 @@ guest / guest123
 DATABASE_URL=postgresql://user:password@host:5432/momo_quant
 ```
 
+Render 上建议这样配置：
+
+1. 新建 PostgreSQL 数据库
+2. 复制 External Database URL
+3. 在 Web Service 环境变量中填入 `DATABASE_URL`
+4. 保留自动生成的 `MOMO_SECRET_KEY`
+
 当前还支持：
 
 - 持久化保存“我的自选”
