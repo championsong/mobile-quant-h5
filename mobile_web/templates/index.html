@@ -164,15 +164,18 @@
               <button class="chart-tab" type="button" id="reset-view">重置视图</button>
             </div>
             <div class="chart-legend" id="chart-legend"></div>
-            <canvas id="candles-chart" height="240"></canvas>
-            <canvas id="volume-chart" height="120"></canvas>
-            <canvas id="equity-chart" class="hidden-chart" height="240"></canvas>
-            <div class="chart-switch">
-              <button class="chart-tab active" data-indicator="macd">MACD</button>
-              <button class="chart-tab" data-indicator="rsi">RSI</button>
-              <button class="chart-tab" data-indicator="boll">BOLL</button>
+            <div class="chart-stage" id="chart-stage">
+              <div class="chart-tooltip hidden-tooltip" id="chart-tooltip"></div>
+              <canvas id="candles-chart" height="240"></canvas>
+              <canvas id="volume-chart" height="120"></canvas>
+              <canvas id="equity-chart" class="hidden-chart" height="240"></canvas>
+              <div class="chart-switch">
+                <button class="chart-tab active" data-indicator="macd">MACD</button>
+                <button class="chart-tab" data-indicator="rsi">RSI</button>
+                <button class="chart-tab" data-indicator="boll">BOLL</button>
+              </div>
+              <canvas id="indicator-chart" height="160"></canvas>
             </div>
-            <canvas id="indicator-chart" height="160"></canvas>
             <div id="signal-list" class="signal-list"></div>
           </section>
         </section>

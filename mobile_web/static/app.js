@@ -20,6 +20,9 @@ const state = {
   isDraggingChart: false,
   dragStartX: 0,
   dragOffsetSnapshot: 0,
+  touchMode: null,
+  pinchDistance: 0,
+  pinchPeriodSnapshot: 20,
 };
 
 async function fetchJson(url, options = {}) {
@@ -329,6 +332,21 @@ function renderChartLegend() {
   `;
 }
 
+function updateChartTooltip(candle) {
+  const tooltip = document.getElementById("chart-tooltip");
+  if (!candle) {
+    tooltip.classList.add("hidden-tooltip");
+    tooltip.innerHTML = "";
+    return;
+  }
+  tooltip.classList.remove("hidden-tooltip");
+  tooltip.innerHTML = `
+    <strong>${candle.date}</strong><br>
+    开 ${candle.open} 高 ${candle.high} 低 ${candle.low} 收 ${candle.close}<br>
+    量 ${candle.volume ?? 0}
+  `;
+}
+
 function drawLineChart(canvas, values, labels, color) {
   const rect = canvas.getBoundingClientRect();
   const width = Math.max(rect.width, 280);
@@ -545,6 +563,9 @@ function drawCandlesChart() {
     ctx.fillStyle = "#18212b";
     ctx.font = "12px Microsoft YaHei UI";
     ctx.fillText(`${item.date} O:${item.open} H:${item.high} L:${item.low} C:${item.close}`, padX, 14);
+    updateChartTooltip(item);
+  } else {
+    updateChartTooltip(null);
   }
 
   ctx.fillStyle = "#6f7884";
@@ -821,12 +842,13 @@ function bindUi() {
     if (state.isDraggingChart) {
       const deltaX = event.clientX - state.dragStartX;
       const stepShift = Math.round(deltaX / 10);
-        state.candleOffset = Math.max(0, state.dragOffsetSnapshot - stepShift);
-        drawCandlesChart();
-        drawIndicatorChart();
-        return;
-      }
-    updateCrosshair(event.clientX);
+      state.candleOffset = Math.max(0, state.dragOffsetSnapshot - stepShift);
+      drawCandlesChart();
+      drawVolumeChart();
+      drawIndicatorChart();
+      return;
+    }
+      updateCrosshair(event.clientX);
   });
   candlesCanvas.addEventListener("mouseleave", () => {
     state.crosshairIndex = null;
@@ -849,6 +871,56 @@ function bindUi() {
     drawVolumeChart();
     drawIndicatorChart();
   }, { passive: false });
+
+  const distanceBetweenTouches = (touches) => {
+    if (touches.length < 2) {
+      return 0;
+    }
+    const dx = touches[0].clientX - touches[1].clientX;
+    const dy = touches[0].clientY - touches[1].clientY;
+    return Math.sqrt(dx * dx + dy * dy);
+  };
+
+  candlesCanvas.addEventListener("touchstart", (event) => {
+    if (event.touches.length >= 2) {
+      state.touchMode = "pinch";
+      state.pinchDistance = distanceBetweenTouches(event.touches);
+      state.pinchPeriodSnapshot = state.candlePeriod;
+      return;
+    }
+    if (event.touches.length === 1) {
+      state.touchMode = "drag";
+      state.dragStartX = event.touches[0].clientX;
+      state.dragOffsetSnapshot = state.candleOffset;
+      updateCrosshair(event.touches[0].clientX);
+    }
+  }, { passive: true });
+
+  candlesCanvas.addEventListener("touchmove", (event) => {
+    if (state.touchMode === "pinch" && event.touches.length >= 2) {
+      const distance = distanceBetweenTouches(event.touches);
+      const ratio = distance / Math.max(state.pinchDistance, 1);
+      const nextPeriod = Math.round(state.pinchPeriodSnapshot / ratio);
+      state.candlePeriod = Math.min(90, Math.max(10, nextPeriod));
+      drawCandlesChart();
+      drawVolumeChart();
+      drawIndicatorChart();
+      return;
+    }
+    if (state.touchMode === "drag" && event.touches.length === 1) {
+      const deltaX = event.touches[0].clientX - state.dragStartX;
+      const stepShift = Math.round(deltaX / 10);
+      state.candleOffset = Math.max(0, state.dragOffsetSnapshot - stepShift);
+      updateCrosshair(event.touches[0].clientX);
+      drawCandlesChart();
+      drawVolumeChart();
+      drawIndicatorChart();
+    }
+  }, { passive: true });
+
+  candlesCanvas.addEventListener("touchend", () => {
+    state.touchMode = null;
+  });
 
   window.addEventListener("resize", () => {
     if (state.lastCandles.length) {

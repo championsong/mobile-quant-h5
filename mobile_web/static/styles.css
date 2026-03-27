@@ -282,6 +282,30 @@ body {
   font-size: 12px;
 }
 
+.chart-stage {
+  position: relative;
+}
+
+.chart-tooltip {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 5;
+  max-width: calc(100% - 20px);
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(24, 33, 43, 0.9);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1.5;
+  pointer-events: none;
+  box-shadow: 0 12px 24px rgba(24, 33, 43, 0.2);
+}
+
+.hidden-tooltip {
+  display: none;
+}
+
 .legend-short {
   color: #f59e0b !important;
 }
